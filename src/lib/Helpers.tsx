@@ -6,7 +6,7 @@ import { readFile, remove as removeFile, rmdir as removeDir, writeFile } from "f
 import { Moment, unix as unixMoment } from "moment";
 import { lock as properLock, ReleaseFn } from "proper-lockfile";
 
-import { Abortable } from "./Abortable";
+import { AbortableThen, AbortableAborted } from "./Abortable";
 
 /** Common name apparently removed from stdlib */
 export interface Thenable<T=any> { // tslint:disable-line:interface-name no-any // any for compatibility
@@ -357,10 +357,10 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 		return this.isThenable( p );
 	}
 	/** Returns the then method, if and only if p is thenable */
-	public static thenIfThenable( p: any ): typeof Promise.prototype.then | undefined { // tslint:disable-line:no-any // any for overloading
+	public static thenIfThenable<T=any>( p: any ): AbortableThen<T> | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
-			const then: typeof Promise.prototype.then | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof then === "function" ? then.bind( p ) as typeof Promise.prototype.then : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+			const then: AbortableThen<T> | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
+			return typeof then === "function" ? then.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
 		} else {
 			return undefined;
 		}
@@ -369,16 +369,16 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 	public static catchIfCatchable( p: any ): typeof Promise.prototype.catch | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
 			const _catch: typeof Promise.prototype.catch | undefined = p.catch; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof _catch === "function" ? _catch.bind( p ) as typeof Promise.prototype.catch : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+			return typeof _catch === "function" ? _catch.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
 		} else {
 			return undefined;
 		}
 	}
 	/** Returns the aborted method, if and only if p is abortedable */
-	public static abortedIfAbortedable( p: any ): typeof Abortable.prototype.aborted | undefined { // tslint:disable-line:no-any // any for overloading
+	public static abortedIfAbortedable<T=any>( p: any ): AbortableAborted<T> | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
-			const aborted: typeof Abortable.prototype.aborted | undefined = p.aborted; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof aborted === "function" ? aborted.bind( p ) as typeof Abortable.prototype.aborted : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+			const aborted: AbortableAborted<T> | undefined = p.aborted; // tslint:disable-line:no-unsafe-any // any for overloading
+			return typeof aborted === "function" ? aborted.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
 		} else {
 			return undefined;
 		}

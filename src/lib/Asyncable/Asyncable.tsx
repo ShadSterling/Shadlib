@@ -69,7 +69,7 @@ export class Asyncable<T> {
 	private static _thenIfThenable<T,TResult1,TResult2>( p: any ): AsyncableThen<T,TResult1,TResult2> | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
 			const then: AsyncableThen<T,TResult1,TResult2> | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof then === "function" ? then.bind( p ) as AsyncableThen<T,TResult1,TResult2> : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+			return typeof then === "function" ? then.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
 		} else {
 			return undefined;
 		}

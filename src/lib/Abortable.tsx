@@ -34,18 +34,20 @@
 import { Helpers, } from "./Helpers";
 
 import * as debugFactory from "debug";
-const debug: debugFactory.IDebugger = debugFactory( "Awaitable" );
+const debug: debugFactory.IDebugger = debugFactory( "Abortable" );
 
 export type AbortablePreparer<T> = ( ac: AbortableController<T>, ) => ( AbortablePrepared<T> | void );
 export type AbortableStarter<T> = ( ac: AbortableController<T>, ) => void;
 export type AbortableAborter<T> = ( message: string|undefined, ac: AbortableController<T>, ) => void | Promise<void>;
 export type AbortablePrepared<T> = { starter: AbortableStarter<T>, aborter: AbortableAborter<T> };
 export type AbortablePrestartPreparer<T> = ( resolve: ( value?: T | PromiseLike<T> ) => void, reject: ( reason?: any ) => void, ac?: AbortableController<T> ) => void; // tslint:disable-line: no-any // any is necessary for compatibility with Promise
-export type AbortableCallbackSuccess<T,TResult=T> = ( result: T      ) => TResult | PromiseLike<TResult>;
-export type AbortableCallbackFailure<  TResult  > = (  error: Error  ) => TResult | PromiseLike<TResult>;
+export type AbortableCallbackSuccess<T,TResult1=T> = ( result: T     ) => TResult1 | PromiseLike<TResult1>;
+export type AbortableCallbackFailure<T,TResult2=T> = ( error:  Error ) => TResult2 | PromiseLike<TResult2>;
 export type AbortableCallbackAbort<    TResult  > = ( reason: string ) => TResult | PromiseLike<TResult>;
 export type AbortableState = "constructing"|"ready"|"running"|"paused"|"idle"|"succeded"|"failed"|"aborted"; // TODO: use enum
 type AbortableAlternatePrep<T> = { state: "succeded", value: T } | { state: "failed", value: Error } | { state: "aborted", value: string };
+export type AbortableThen<T, TResult1=T, TResult2=never> = ( onfulfilled?: AbortableCallbackSuccess<T,TResult1>, onrejected?:  AbortableCallbackFailure< T,TResult2>, ) => Abortable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
+export type AbortableAborted<TResult> = ( onAbort?: AbortableCallbackAbort<TResult> | undefined | null ) => Abortable<TResult>;
 
 //TODO: make these methods? re-enable only-arrow-functions?
 /** A function that does nothing */
@@ -96,9 +98,10 @@ export class Abortable<T> implements Promise<T> {
 		return r;
 	}
 	/** Promise-compatible alias of [[success]] */
-	public static resolve(): Promise<void>;
-	public static resolve<T>( result: T | PromiseLike<T> ): Abortable<T>;
-	public static resolve( result?: any ): Abortable<any> { return this.success<any>(result); } // tslint:disable-line:no-any // any for overloading
+	// public static resolve(): Promise<void>;
+	// public static resolve<T>( result: T | PromiseLike<T> ): Abortable<T>;
+	// public static resolve( result?: any | void ): Abortable<any> { return this.success<any>(result); } // tslint:disable-line:no-any // any for overloading
+	public static resolve<T=void>( result: T | PromiseLike<T> ): Abortable<T> { return this.success<T>( result ); }
 	/** Alias of [[success]] to satisfy the [Promise test suite](https://github.com/promises-aplus/promises-tests) */
 	// public static resolved<T>(result:T):Abortable<T> { return Abortable.resolve<T>(result); } // can't use `this` because test suite rebinds to undefined
 	/** Promise-compatible alias of [[failure]] */
@@ -480,40 +483,40 @@ export class Abortable<T> implements Promise<T> {
 	 * Attaches a callback to be invoked when the task represented by this [[Abortable]] succedes
 	 * @returns An abortable representing both the prior task and the callback as a single task
 	 */
-	public then<TResult=T>( // TODO: allow passing an Abortable which will be started after this one
-		onSuccess?: AbortableCallbackSuccess<T,TResult> | undefined | null,
-		onFailure?: AbortableCallbackFailure<  TResult> | undefined | null,
-		onAbort?:   AbortableCallbackAbort<    TResult> | undefined | null,
-	): Abortable<TResult> { // TODO: allow success, failure, and abort to return different types
+	public then<TResult1=T,TResult2=never>( // TODO: allow passing an Abortable which will be started after this one
+		onSuccess?: AbortableCallbackSuccess<T,TResult1> | undefined | null,
+		onFailure?: AbortableCallbackFailure<T,TResult2> | undefined | null,
+		onAbort?:   AbortableCallbackAbort<    TResult1> | undefined | null,
+	): Abortable<TResult1|TResult2> { // TODO: allow success, failure, and abort to return different types
 		const fn: string = `${this.label}.then`;
 		debug( `${fn}: Invoked in state ${this._as.state}` );
-		let r: Abortable<TResult>;
+		let r: Abortable<TResult1|TResult2>;
 		switch( this._as.state ) {
 			case "constructing": case "ready": case "running": case "paused": case "idle":
-				r = new Abortable<TResult>( (/*ac*/) => { return {
-					starter: nullStarter<TResult>(),
-					aborter: ( (message,/*ac*/) => { this.abort( message ); } ) as AbortableAborter<TResult>,
+				r = new Abortable<TResult1|TResult2>( (/*ac*/) => { return {
+					starter: nullStarter<TResult1|TResult2>(),
+					aborter: ( (message,/*ac*/) => { this.abort( message ); } ) as AbortableAborter<TResult1|TResult2>,
 				}; } );
-				const ac: AbortableController<TResult> = r._as.ac;
+				const ac: AbortableController<TResult1|TResult2> = r._as.ac;
 				this._as.onSuccess.push(
 					typeof onSuccess === "function"
 					? (result:T) => {
 						debug( `${fn}/onSuccess: chaining via success callback with result`, result );
-						AbortableShared.chainHelper<TResult>( () => onSuccess(result), ac );
+						AbortableShared.chainHelper<TResult1|TResult2>( () => onSuccess(result), ac );
 					}
 					: (result:T) => {
 						debug( `${fn}/onSuccess: chaining directly with result`, result );
-						ac.success( result as {} as TResult ); // if callback is missing, this is a reinterpret-cast
+						ac.success( result as {} as TResult1 ); // if callback is missing, this is a reinterpret-cast
 					},
 				);
 				this._as.onFailure.push(
 					typeof onFailure === "function"
-					? (error:Error) => { AbortableShared.chainHelper<TResult>( () => onFailure(error), ac ); }
+					? (error:Error) => { AbortableShared.chainHelper<TResult1|TResult2>( () => onFailure(error), ac ); }
 					: (error:Error) => { ac.failure( error ); }, // if callback is missing, this is a reinterpret-cast
 				);
 				this._as.onAbort.push(
 					typeof onAbort === "function"
-					? (reason:string) => { AbortableShared.chainHelper<TResult>( () => onAbort(reason), ac ); }
+					? (reason:string) => { AbortableShared.chainHelper<TResult1|TResult2>( () => onAbort(reason), ac ); }
 					: (reason:string) => { r.abort( reason ); }, // if callback is missing, this is a reinterpret-cast
 				);
 				if( this.state === "running" ) { r.start(); } // TODO: propagate all state changes from this to r
@@ -521,40 +524,40 @@ export class Abortable<T> implements Promise<T> {
 			case "succeded":
 				if( typeof onSuccess === "function" ) {
 					// r = AbortableShared.prepHelper<TResult>( () => onSuccess(this._as.result as T) ); // state "succeded" implies _as.result is set
-					r = new Abortable<TResult>( (ac2) => {
+					r = new Abortable<TResult1|TResult2>( (ac2) => {
 						setTimeout( () => ac2.success( onSuccess(this._as.result as T) ), 0 );
-						return nullPrepared<TResult>();
+						return nullPrepared<TResult1|TResult2>();
 					 } ); // state "succeded" implies _as.result is set
 				} else {
 					// const prep: AbortableAlternatePrep<TResult> = { state: "succeded", value: this._as.result as {} as TResult }; // if callback is missing, this is a reinterpret-cast
 					// r = new Abortable( prep as {} as AbortablePreparer<TResult> );
-					r = new Abortable<TResult>( (ac2) => ac2.success( this._as.result as {} as TResult ) ); // if callback is missing, this is a reinterpret-cast // state "succeded" implies _as.result is set
+					r = new Abortable<TResult1|TResult2>( (ac2) => ac2.success( this._as.result as {} as TResult1 ) ); // if callback is missing, this is a reinterpret-cast // state "succeded" implies _as.result is set
 				}
 				break;
 			case "failed":
 				if( typeof onFailure === "function" ) {
 					// r = AbortableShared.prepHelper<TResult>( () => onFailure(this._as.error as Error) ); // state "failed" implies _as.error is set
-					r = new Abortable<TResult>( (ac2) => {
+					r = new Abortable<TResult1|TResult2>( (ac2) => {
 						setTimeout( () => ac2.success( onFailure(this._as.error as Error) ), 0 ); // state "failed" implies _as.error is set
-						return nullPrepared<TResult>();
+						return nullPrepared<TResult1|TResult2>();
 					 } );
 				} else {
 					// const prep: AbortableAlternatePrep<TResult> = { state: "failed", value: this._as.error as Error }; // state "failed" implies _as.error is set
 					// r = new Abortable( prep as {} as AbortablePreparer<TResult> );
-					r = new Abortable<TResult>( (ac2) => ac2.failure( this._as.error as Error) ); // state "failed" implies _as.error is set
+					r = new Abortable<TResult1|TResult2>( (ac2) => ac2.failure( this._as.error as Error) ); // state "failed" implies _as.error is set
 				}
 				break;
 			case "aborted":
 				if( typeof onAbort === "function" ) {
 					// r = AbortableShared.prepHelper<TResult>( () => onAbort(this._as.reason as string) ); // state "aborted" implies _as.reason is set
-					r = new Abortable<TResult>( (ac2) => {
+					r = new Abortable<TResult1|TResult2>( (ac2) => {
 						setTimeout( () => ac2.success( onAbort(this._as.reason as string) ), 0 ); // state "aborted" implies _as.reason is set
-						return nullPrepared<TResult>();
+						return nullPrepared<TResult1|TResult2>();
 					 } );
 				} else {
 					// const prep: AbortableAlternatePrep<TResult> = { state: "aborted", value: this._as.reason as string }; // state "aborted" implies _as.reason is set
 					// r = new Abortable( prep as {} as AbortablePreparer<TResult> );
-					r = new Abortable<TResult>( () => { r.abort( this._as.reason as string ); return undefined; } ); // state "aborted" implies _as.reason is set
+					r = new Abortable<TResult1|TResult2>( () => { r.abort( this._as.reason as string ); return undefined; } ); // state "aborted" implies _as.reason is set
 				}
 				break;
 			default: throw new Error( `Settled in invalid state ${this._as.state}` );
@@ -566,11 +569,11 @@ export class Abortable<T> implements Promise<T> {
 	 * Attaches a callback to be invoked when the task represented by this [[Abortable]] fails
 	 * @returns An abortable representing both the prior task and the callback as a single task
 	 */
-	public catch<TResult=T>(
-		onFailure?: AbortableCallbackFailure<  TResult> | undefined | null,
-		onAbort?:   AbortableCallbackAbort<    TResult> | undefined | null,
-	): Abortable<TResult|T> { // TODO: break from promise spec and return strictly Abortable<TResult>
-		return this.then<TResult|T>( undefined, onFailure, onAbort );
+	public catch<TResult2=T>(
+		onFailure?: AbortableCallbackFailure<T,TResult2> | undefined | null,
+		onAbort?:   AbortableCallbackAbort<  T         > | undefined | null,
+	): Abortable<TResult2|T> { // TODO: break from promise spec and return strictly Abortable<TResult>
+		return this.then<T,TResult2>( undefined, onFailure, onAbort );
 	}
 	/**
 	 * Attaches a callback to be invoked when the task represented by this [[Abortable]] is aborted

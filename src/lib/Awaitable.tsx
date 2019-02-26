@@ -113,7 +113,7 @@ export class Awaitable<T> implements Promise<T> {
 	private static _thenIfThenable<T,TResult1,TResult2>( p: any ): AwaitableThen<T,TResult1,TResult2> | undefined { // tslint:disable-line:no-any // any for overloading
 		if( !!p && (typeof p === "object" || typeof p === "function") ) {
 			const then: AwaitableThen<T,TResult1,TResult2> | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof then === "function" ? then.bind( p ) as AwaitableThen<T,TResult1,TResult2> : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+			return typeof then === "function" ? then.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
 		} else {
 			return undefined;
 		}
