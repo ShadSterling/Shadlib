@@ -6,7 +6,7 @@ import { Deferred, DeferredAsyncablePromise } from "./DeferredAsyncablePromise";
 
 export type AsyncablePreparer<T> = ( ac: AsyncableController<T>, ) => ( AsyncablePrepared<T> | undefined | void );
 export type AsyncableStarter<T> = ( ac: AsyncableController<T>, ) => void;
-export type AsyncablePrepared<T> = { starter?: AsyncableStarter<T> }; // TODO: class with fromRaw-style constructor
+export type AsyncablePrepared<T> = { starter?: AsyncableStarter<T> }; // tslint:disable-line: completed-docs // not documenting properties for types // TODO: class with fromRaw-style constructor
 export enum AsyncableState { PREPARING, READY, RUNNING, SUCCEDED, FAILED, INVALID }
 export type AsyncableCallbackSuccess<T,TResult1> = ( ( result: T  ) => TResult1 | PromiseLike<TResult1> ) | null | undefined;
 export type AsyncableCallbackFailure<T,TResult2> = ( ( error: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined; // tslint:disable-line:no-any no-unused-variable // any for compatibility // T for consistency

@@ -32,8 +32,8 @@
         "noImplicitUseStrict": false,
         "noLib": false,
         "noStrictGenericChecks": false,
-        "noUnusedLocals": false, // Strictly for typedoc, which checks for unused type parameters when this is true
-        "noUnusedParameters": false,
+        "noUnusedLocals": false, // TODO: Enable when TS allowd per-line lint disabling
+        "noUnusedParameters": false, // TODO: Enable when TS allowd per-line lint disabling
         "preserveConstEnums": true,
         "preserveSymlinks": false,
         "pretty": true,

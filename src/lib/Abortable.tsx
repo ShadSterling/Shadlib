@@ -39,15 +39,16 @@ const debug: debugFactory.IDebugger = debugFactory( "Abortable" );
 export type AbortablePreparer<T> = ( ac: AbortableController<T>, ) => ( AbortablePrepared<T> | void );
 export type AbortableStarter<T> = ( ac: AbortableController<T>, ) => void;
 export type AbortableAborter<T> = ( message: string|undefined, ac: AbortableController<T>, ) => void | Promise<void>;
-export type AbortablePrepared<T> = { starter: AbortableStarter<T>, aborter: AbortableAborter<T> };
+export type AbortablePrepared<T> = { starter: AbortableStarter<T>, aborter: AbortableAborter<T> }; // tslint:disable-line: completed-docs // not documenting properties for types
 export type AbortablePrestartPreparer<T> = ( resolve: ( value?: T | PromiseLike<T> ) => void, reject: ( reason?: any ) => void, ac?: AbortableController<T> ) => void; // tslint:disable-line: no-any // any is necessary for compatibility with Promise
 export type AbortableCallbackSuccess<T,TResult1=T> = ( result: T     ) => TResult1 | PromiseLike<TResult1>;
 export type AbortableCallbackFailure<T,TResult2=T> = ( error:  Error ) => TResult2 | PromiseLike<TResult2>;
 export type AbortableCallbackAbort<    TResult  > = ( reason: string ) => TResult | PromiseLike<TResult>;
 export type AbortableState = "constructing"|"ready"|"running"|"paused"|"idle"|"succeded"|"failed"|"aborted"; // TODO: use enum
-type AbortableAlternatePrep<T> = { state: "succeded", value: T } | { state: "failed", value: Error } | { state: "aborted", value: string };
+type AbortableAlternatePrep<T> = { state: "succeded", value: T } | { state: "failed", value: Error } | { state: "aborted", value: string }; // tslint:disable-line: completed-docs // not documenting properties for types
 export type AbortableThen<T, TResult1=T, TResult2=never> = ( onfulfilled?: AbortableCallbackSuccess<T,TResult1>, onrejected?:  AbortableCallbackFailure< T,TResult2>, ) => Abortable<TResult1 | TResult2>; // tslint:disable-line:no-any // any for compatibility
 export type AbortableAborted<TResult> = ( onAbort?: AbortableCallbackAbort<TResult> | undefined | null ) => Abortable<TResult>;
+type DeferredAbortable<T> = { promise:Abortable<T>,resolve:(t:T)=>void,reject:(e:Error)=>void,abort:(r:string)=>void }; // tslint:disable-line: completed-docs // not documenting properties for types
 
 //TODO: make these methods? re-enable only-arrow-functions?
 /** A function that does nothing */
@@ -109,7 +110,7 @@ export class Abortable<T> implements Promise<T> {
 	/** Alias of [[failure]] to satisfy the [Promise test suite](https://github.com/promises-aplus/promises-tests) */
 	// public static rejected<T=never>(error:any):Abortable<T> { return Abortable.reject(error); } // tslint:disable-line: no-any // any for caompatability // can't use `this` because test suite rebinds to undefined
 	/** Alternate [[constructor]] to satisfy the [Promise test suite](https://github.com/promises-aplus/promises-tests) */
-	public static deferred<T>(): {promise:Abortable<T>,resolve:(t:T)=>void,reject:(e:Error)=>void,abort:(r:string)=>void} {
+	public static deferred<T>(): DeferredAbortable<T> {
 		let c: AbortableController<T>;
 		const p = new Abortable<T>( (ac) => { c = ac; return nullPrepared<T>(); } );
 		debug( `${p.label}: deferred promise created (EXTERNAL)` );

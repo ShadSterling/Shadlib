@@ -10,6 +10,7 @@ import { AbortableThen, AbortableAborted } from "./Abortable";
 
 /** Common name apparently removed from stdlib */
 export interface Thenable<T=any> { // tslint:disable-line:interface-name no-any // any for compatibility
+	/** The only required property of a Thenable */
 	then<TResult1 = T, TResult2 = never>(
 		onfulfilled?: ( ( value: T  ) => TResult1 | PromiseLike<TResult1>) | undefined | null,
 		onrejected?:  ( (reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null, // tslint:disable-line: no-any // any is necessary for compatibility
@@ -179,9 +180,9 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 		return daemon;
 	}
 	/** Get output from external command (what backticks do in many languages) */
-	public static async backtick( command: string, args: string[] = [], options: any = {} ): Promise<CommandResult> { // tslint:disable-line:no-any // TODO: type for options; superset of SpawnOptions?
+	public static async backtick( command: string, args: string[] = [], options: any = {} ): Promise<BacktickResult> { // tslint:disable-line:no-any // TODO: type for options; superset of SpawnOptions?
 		const fn: string = "Helpers.backtick";
-		return new Promise<CommandResult>( (resolve,reject) => {
+		return new Promise<BacktickResult>( (resolve,reject) => {
 			(async () => {
 				try {
 					let opts: any = {}; // tslint:disable-line:no-any // TODO: type for options; copy constructor here
@@ -197,13 +198,14 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 							opts.shell = true; // tslint:disable-line:no-unsafe-any // TODO: type for options
 						}
 					}
+					// TODO: options.timeout
 					// console.log( fn+": command = ", command );
 					// console.log( fn+": args = ", args );
 					// console.log( fn+": opts = ", opts );
 
 					let out: string = "";
 					let err: string = "";
-					const log: {time:number,fd:"OUT"|"ERR"|"EXIT",data:string}[] = [];
+					const log: BacktickOutputEntry[] = [];
 
 					const start: number = Helpers.unixTime();
 					const cmd = spawnProcess( command, args, opts ); // tslint:disable-line:no-unsafe-any // TODO: type for options
@@ -261,7 +263,7 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 		return release;
 	} catch(e) { throw this.errorChain( e, fn ); } }
 	/** Check weather a lock created by [[PIDlock]] is still valid */
-	public static async PIDcheck( filename: string ): Promise<{HOST:string,PID:number,START:number,startStr:string}|undefined> {
+	public static async PIDcheck( filename: string ): Promise<PIDcheckInfo|undefined> {
 		const fn = "Helpers.PIDcheck";
 		// console.log( "Checking PIDfile "+filename );
 		try {
@@ -431,17 +433,29 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 }
 
 export interface IAsyncNew {
-	asyncConstructor: Promise<void>; // resolves when asynchronous portion of constructor completes
+	/** Resolves when asynchronous portion of constructor completes */
+	asyncConstructor: Promise<void>;
 	// static async new(...args:any[]): Promise<typeof this> { let r = new this(...args); await r.asyncConstructor; return r}
 }
 
-export type CommandResult = {
+export type BacktickResult = {
+	/** unixtime of command start */
 	start: number,
+	/** command or command and parameters */
 	command: string | string[],
+	/** input given on stdin after command is started */
 	input: string,
+	/** output command wrote to stdout */
 	out: string,
+	/** output command wrote to stderr */
 	err: string,
+	/** exit code */
 	code: number,
+	/** unixtime of command exit */
 	stop: number,
+	/** true if stdout was written to or code is nonzero */
 	errors: boolean,
 };
+
+type BacktickOutputEntry = {time:number,fd:"OUT"|"ERR"|"EXIT",data:string}; // tslint:disable-line: completed-docs // not documenting properties for types
+type PIDcheckInfo = {HOST:string,PID:number,START:number,startStr:string}; // tslint:disable-line: completed-docs // not documenting properties for types
