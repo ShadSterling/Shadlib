@@ -1,10 +1,12 @@
-import { describe, /*it*/ } from "mocha"; // tslint:disable-line:no-implicit-dependencies
-import { expect } from "chai"; // tslint:disable-line:no-implicit-dependencies ordered-imports
+/*  eslint-disable import/no-extraneous-dependencies,@typescript-eslint/require-await,import/order  --  this is a test spec; awaits are handled by test framework; TODO: import/order option to sort by imported name rather than import source name  */
 
-import { install } from "source-map-support"; // tslint:disable-line:no-implicit-dependencies // it's a dev dependency; testing is part of dev
+import { describe } from "mocha";
+import { expect } from "chai";
+
+import { install } from "source-map-support";
 install();
 
-// import * as promisesAPlusTests from "promises-aplus-tests"; // tslint:disable-line:no-implicit-dependencies // it's a dev dependency; testing is part of dev
+// import * as promisesAPlusTests from "promises-aplus-tests-refreshed";  //  TODO: this doesn't pass; fix based on Asyncable
 
 import { Abortable } from "../lib/Abortable";
 

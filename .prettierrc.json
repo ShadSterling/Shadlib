@@ -1,0 +1,35 @@
+{
+	"arrowParens": "always",
+	"bracketSameLine": false,
+	"bracketSpacing": true,
+	"embeddedLanguageFormatting": "auto",
+	"endOfLine": "lf",
+	"htmlWhitespaceSensitivity": "strict",
+	"insertPragma": false,
+	"jsxSingleQuote": false,
+	"overrides": [
+		{
+			"files": [
+				"*.cts",
+				"*.d.ts",
+				"*.js",
+				"*.mts",
+				"*.ts",
+				"*.tsx"
+			],
+			"options": {
+				"parser": "typescript"
+			}
+		}
+	],
+	"proseWrap": "preserve",
+	"quoteProps": "consistent",
+	"requirePragma": false,
+	"semi": false,
+	"singleAttributePerLine": false,
+	"singleQuote": false,
+	"tabWidth": 4,
+	"trailingComma": "es5",
+	"useTabs": true,
+	"vueIndentScriptAndStyle": true
+  }

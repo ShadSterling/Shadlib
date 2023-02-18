@@ -1,4 +1,7 @@
-import { ChildProcess, fork as forkProcess, ForkOptions, spawn as spawnProcess, SpawnOptions } from "child_process";
+import * as debugFactory from "debug";  //  eslint-disable-line import/order  --  TODO: import/order option for conventions about specific imports
+const debug: debugFactory.IDebugger = debugFactory( "Helpers" );  //  eslint-disable-line @typescript-eslint/naming-convention -- use lowercase "debug" consistent with widespread convention
+
+import { ChildProcess, fork as forkProcess, ForkOptions, spawn as spawnProcess, SpawnOptionsWithoutStdio } from "child_process";
 import { hostname } from "os";
 
 import { caller } from "caller";
@@ -9,68 +12,68 @@ import { lock as properLock, ReleaseFn } from "proper-lockfile";
 import { AbortableThen, AbortableAborted } from "./Abortable";
 
 /** Common name apparently removed from stdlib */
-export interface Thenable<T=any> { // tslint:disable-line:interface-name no-any // any for compatibility
+export interface Thenable<T> {  //  eslint-disable-line @typescript-eslint/naming-convention  --  No "I" prefix for widely used name
 	/** The only required property of a Thenable */
-	then<TResult1 = T, TResult2 = never>(
+	then: <TResult1 = T, TResult2 = never>(
 		onfulfilled?: ( ( value: T  ) => TResult1 | PromiseLike<TResult1>) | undefined | null,
-		onrejected?:  ( (reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null, // tslint:disable-line: no-any // any is necessary for compatibility
-	): Promise<TResult1 | TResult2>;
+		onrejected?:  ( (reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null,  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  TODO: figure out how to type rejections
+	) => Promise<TResult1 | TResult2>;
 }
 
 /** My personal "personal quirks" idiomatic miscellanious helper collection */
-export class Helpers { // tslint:disable-line:no-unnecessary-class
+export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous-class  --  TODO: is there a better way to do this now?
 	/** MacroTasks run from a FIFO queue, when queue is empty program ends */
 	public static asyncMacro( task: ()=>void ) {
 		// const preserve = new Error( "-=-=-=-=-=-=- MacroTask Branchpoint -=-=-=-=-=-=-" );
 		setTimeout( () => {
-			try {
+			try {  //  eslint-disable-line no-useless-catch  --  TODO: update errorChain to combine stack traces
 				task();
 			} catch(e) {
 				// e = this.errorChain( e, preserve ) // TODO: update errorChain to combine stack traces
-				throw e;
+				throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: update errorChain to combine stack traces
 			}
 		} , 0 ); // TODO: args; take <T> as argtype?
 	}
 	/** MicroTasks run from a FIFO queue, when queue is empty next MacroTask runs */
 	public static asyncMicro( task: ()=>void ) { // TODO: preserve stack traces
-		Promise.resolve().then( task ); // TODO: args; take <T> as argtype?
+		Promise.resolve().then( task );  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  TODO: what should default catch do?  //  TODO: args; take <T> as argtype?
 	}
 	/** Insert the elements of one array into another array */
-	public static arrayInsertArray<T=any>( into:T[], elms:ReadonlyArray<T>, start:number ): T[] { // tslint:disable-line:no-any // TODO: option to put result in new array
+	public static arrayInsertArray<T=any>( into:T[], elms:readonly T[], start:number ): T[] {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  default to any so it works by default  //  TODO: option to put result in new array
 		let i: number;
 		let j: number;
 		for( i = into.length-1; i >= start; i-- ) {
 			j = i + elms.length;
-			into[j] = into[i];
+			into[j] = into[i];  //  eslint-disable-line no-param-reassign  --  this method is meant to edit into in-place
 		}
 		for( i = 0; i < elms.length; i++ ) {
 			j = start + i;
-			into[j] = elms[i];
+			into[j] = elms[i];  //  eslint-disable-line no-param-reassign  --  this method is meant to edit into in-place
 		}
 		return into;
 	}
 	/** Generic asynchronous construction */
-	public static async asyncNew<T=any>( asyncClass:any, ...args:any[] ): Promise<T> { // tslint:disable-line:no-any // TODO: get rid of any when typescript supports typed rest parameters // TODO: replace this with an implementable interface
-		return (new asyncClass(...args)).asyncContructor.then( (v:any)=>v ); // tslint:disable-line:no-any no-unsafe-any // TODO: check that asyncClass is newable // TODO: constant for identity function?
+	public static async asyncNew<T=any>( asyncClass:any, ...args:any[] ): Promise<T> { // eslint-disable-line @typescript-eslint/no-explicit-any  --  TODO: get rid of any when typescript supports typed rest parameters // TODO: replace this with an implementable interface
+		return await (new asyncClass(...args)).asyncContructor;  //  eslint-disable-line @typescript-eslint/no-unsafe-return,no-return-await,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call  --  TODO: check that asyncClass is newable and has asyncConstructor; use await to return derived promise  //  TODO: constant for identity function?
 	}
 	/** Convert dates to unixtimes */
-	public static unixTime( d?:Date|string ): number { return ( d ? ( (d instanceof Date) ? d.getTime() : Date.parse(d) ) : Date.now() ) / 1000; } // tslint:disable-line:no-magic-numbers // TODO: unixtime as a type?
-	/** As close as javascript gets to the common `sleep` function, but with the option to sleep until a given time, and th option to cancel */
-	public static async idle( d: number|Date|string = 0, c?: Function ): Promise<boolean> { // TODO: types for c and canceller? // TODO: return an Abortable
+	public static unixTime( d?:Date|string ): number { return ( "undefined" !== typeof d ? ( (d instanceof Date) ? d.getTime() : Date.parse(d) ) : Date.now() ) / 1000; }  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  1000 is the ratio between unixtime and javascript time  //  TODO: unixtime as a type?
+	/** As close as javascript gets to the common `sleep` function, but with the option to sleep until a given time, and the option to cancel */
+	public static async idle( d: number|Date|string = 0, callback?: (canceler:()=>void) => void ): Promise<boolean> { // TODO: return an Abortable
 		let timer: NodeJS.Timer | undefined;
-		let _resolve: Function;
+		let _resolve: (finished:boolean) => void;
 		// let _reject: Function;
 		const r: Promise<boolean> = new Promise<boolean>( (resolve,/*reject*/) => { _resolve = resolve; /*_reject = reject;*/ } );
 		let timeout: number;
 		const finished: ()=>void = () => {
 			// console.log( "Idle Time Finished" );
-			 _resolve(true);
+			_resolve(true);
 		};
-		if( typeof d === "number" ) {
+		if( "number" === typeof d ) {
 			if( d <= this.unixTime() ) { // it's a duration // TODO: compare to TIMEOUT_MAX, which should be defined as (2^32)-1
-				timeout = d*1000; // tslint:disable-line:no-magic-numbers // TODO: move magic number to a readonly property?
+				timeout = d*1000;  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  1000 is the ratio between unixtime and javascript time  //  TODO: move magic number to a readonly property?
 			} else { // it's a time // TODO: refuse to idle into the past
-				timeout = d*1000 - Date.now(); // tslint:disable-line:no-magic-numbers // TODO: move magic number to a readonly property?
+				timeout = d*1000 - Date.now();  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  1000 is the ratio between unixtime and javascript time  //  TODO: move magic number to a readonly property?
 			}
 		} else if( d instanceof Date ) {
 			timeout = d.getTime() - Date.now();
@@ -78,22 +81,22 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 			timeout = Date.parse(d) - Date.now();
 		}
 		timer = setTimeout( finished, timeout );
-		if( c ) {
+		if( callback ) {
 			const canceler: ()=>void = () => {
 				_resolve(false);
-				if( timer ) { clearTimeout( timer ); timer = undefined; }
+				if( timer ) { clearTimeout( timer ); timer = undefined; }  //  eslint-disable-line no-undefined  --  explicitly clear the timer
 			};
-			c( canceler );
+			callback( canceler );
 		}
 		return r;
 	}
 	/** As close as javascript gets to the common `sleep` function (this one can't be cancelled) */
-	public static async idleFor( s: number = 0 ): Promise<void> { return new Promise<void>( (resolve) => setTimeout( resolve, s*1000 ) ); } // tslint:disable-line:no-magic-numbers // TODO: move magic number to a readonly property?
+	public static async idleFor( s = 0 ): Promise<void> { return new Promise<void>( (resolve) => setTimeout( resolve, s*1000 ) ); }  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  1000 is the ratio between unixtime and javascript time  //  TODO: move magic number to a readonly property?
 	/** As close as javascript gets to a `sleep_until` function (this one can't be cancelled) */
 	public static async idleUntil( u: number|Date|string ): Promise<void> { // TODO: return an Abortable // TODO: unixtime type?
 		let v: number;
-		if( typeof u === "number" ) {
-			v = u*1000; // tslint:disable-line:no-magic-numbers // TODO: move magic number to a readonly property?
+		if( "number" === typeof u ) {
+			v = u*1000;  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  1000 is the ratio between unixtime and javascript time  //  TODO: move magic number to a readonly property?
 		} else if( u instanceof Date ) {
 			v = u.getTime();
 		} else {
@@ -108,7 +111,7 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 		const start = this.unixTime();
 		const stop = start + timeout;
 		// console.log( "Polling every "+interval+" from "+this.humanTime(start)+" to "+this.humanTime(stop) );
-		while( true ) { // TODO: use setInterval?
+		while( true ) {  //  eslint-disable-line no-constant-condition  --  pollin is an infinite loop  //  TODO: use setInterval?
 			if( await test() ) { return true; }
 			// console.log( "POLL test failed" );
 			if( this.unixTime() > stop ) { break; }
@@ -120,49 +123,56 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 		return false;
 	}
 	/** Convert an object to multiline JSON, optionally excluding specified keys */
-	public static JSONify( obj: any, options: any = {}, console?: Console ) { // tslint:disable-line:no-any no-unsafe-any // TODO: type for options & options.exclude
-		const fn: string = "Helpers.JSONify"; // tslint:disable-line:no-unused-variable
-		if( console ) { console.log( fn + ": options = ", options ); }
+	public static JSONify( obj: any, options: any = {}, _console?: Console ) {  //  eslint-disable-line @typescript-eslint/naming-convention,@typescript-eslint/no-explicit-any  --  keep "JSON" all caps; JSON can come from any type  // TODO: type for options & options.exclude
+		const fn = "Helpers.JSONify";
+		if( _console ) { _console.log( `${fn}: options = `, options ); }
 		return JSON.stringify(
 			obj,
-			options ? options.exclude ? (key,value) => { // tslint:disable-line:no-unsafe-any // TODO: type for options & options.exclude
-				const exclude = (
-					options
-					&& options.exclude // tslint:disable-line:no-unsafe-any // TODO: type for options & options.exclude
+			( ("undefined" !== typeof options) && ("undefined" !== typeof options.exclude) ) ? (key,value) => {  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access  --  not actually unsafe when reciever is not undefined  //  TODO: types for options & options.exclude
+				const exclude: boolean = (
+					("undefined" !== typeof options)
+					&& ("undefined" !== typeof options.exclude)  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access  --  not actually unsafe when reciever is not undefined  //  TODO: types for options & options.exclude
 					&& (
-						( (typeof options.exclude) === "string" && options.exclude === key ) // tslint:disable-line:no-unsafe-any // TODO: type for options & options.exclude
-						|| ( obj.exclude instanceof Array && options.exclude.includes(key) ) // tslint:disable-line:no-unsafe-any // TODO: type for options & options.exclude
-						|| options.exclude.key                                               // tslint:disable-line:no-unsafe-any // TODO: type for options & options.exclude
+						( ("string" === typeof options.exclude) && (options.exclude === key) )        //  eslint-disable-line @typescript-eslint/no-unsafe-member-access  --  not actually unsafe when reciever is not undefined  //  TODO: types for options & options.exclude
+						|| ( (options.exclude instanceof Array) && !!options.exclude.includes(key) )  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call,@typescript-eslint/strict-boolean-expressions  --  not actually unsafe when reciever is an Array  //  TODO: types for options & options.exclude
+						|| (!!options.exclude.key)                                                    //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/strict-boolean-expressions  --  not actually unsafe when reciever is not undefined  //  TODO: types for options & options.exclude
 					)
 				);
 				if( exclude ) {
-					if( console ) { console.log( fn +"/replacer: EXCLUDING key ("+(typeof key)+") "+key ); }
-					return undefined;
+					if( _console ) { _console.log( `${fn}/replacer: EXCLUDING key (${typeof key}) ${key}` ); }
+					return undefined;  //  eslint-disable-line no-undefined  --  use undefined for excluded keys
 				}
-				if( console ) { console.log( fn +"/replacer: including key ("+(typeof key)+") "+key ); }
-				return value;
-			} : undefined : undefined,
+				if( _console ) { _console.log( `${fn}/replacer: including key (${typeof key}) ${key}` ); }
+				return value;  //  eslint-disable-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-unsafe-return  --  JSON can come from any type
+			} : undefined,  //  eslint-disable-line no-undefined  --  use undefined for no filtering
 			"\t",
 		);
 	}
 	/** Get a unixTime, Date or parsable time string in a human-readable format */
 	public static humanTime( time?: number | Date | string ): string {
-		const u: number = time === undefined
+		const u: number = "undefined" === typeof time
 			? this.unixTime()
-			: typeof time === "number"
+			: "number" === typeof time
 				? time
 				: time instanceof Date
-					? time.getTime()/1000 // tslint:disable-line:no-magic-numbers // TODO: unixtime as a type? // use unixtime conversion method here?
+					? time.getTime()/1000  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  1000 is the ratio between unixtime and javascript time  //  TODO: unixtime as a type? Use unixtime conversion method here?
 					: Date.parse(time);
-		const m: Moment = unixMoment( u ); // tslint:disable-line:no-unsafe-any // TODO: tslint bug, false positive for no-unsafe-any
-		const r: string = m.format( "YYYY-MMM-DD HH:mm:ss.SSSSSS Z" ); // tslint:disable-line:no-unsafe-any // TODO: tslint bug, false positive for no-unsafe-any
+		const m: Moment = unixMoment( u );
+		const r: string = m.format( "YYYY-MMM-DD HH:mm:ss.SSSSSS Z" );
 		return r;
 	}
-	/** Ensures an Error object and adds a prefix to the error message; useful for tracing errors through promise chains */
-	public static errorChain( error: any, messagePrefix?: string ): Error { // tslint:disable-line:no-any // this function does conversion to error
-		const err: Error = error instanceof Error ? error : typeof error === "object" ? new Error( this.JSONify( error ) ) : new Error( error as string ); // all primitives are reasonably convertable to string // TODO: include class name from tostring as well as JSONify?
-		if( err.message === "" ) { err.message = "(Empty message)"; } else if( !err.message ) { err.message = "(No message)"; }
-		if( messagePrefix ) { err.message = messagePrefix + " -- " + err.message; }
+	/**
+	 * Ensures an Error object and adds a prefix to the error message; useful for tracing errors through promise chains
+	 * @param error {any} The caught error to prepend the messagePrefix to
+	 */
+	public static errorChain( error: unknown, messagePrefix?: string ): Error {
+		const err: Error = error instanceof Error ? error : "object" === typeof error ? new Error( this.JSONify( error ) ) : new Error( error as string ); // all primitives are reasonably convertable to string // TODO: include class name from tostring as well as JSONify?
+		if( "" === err.message ) {
+			err.message = "(Empty message)";
+		} else if( "undefined" === typeof err.message ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen
+			err.message = "(No message)";
+		}
+		if( "undefined" !== typeof messagePrefix ) { err.message = `${messagePrefix} -- ${err.message}`; }
 		return err;
 	}
 	/** Fork a daemon process to run in the background, with no direct communication to this process */
@@ -172,7 +182,7 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 			detached: true, // types exclude detatched, but fork call honors it; see https://github.com/nodejs/node/issues/17592
 			env: env,
 			stdio: "ignore", // types exclude string (and errs with array of ignore), but fork call honors it
-		} as {}; // tslint:disable-line:no-object-literal-type-assertion // TODO: extended ForkOptions type with peoperties unofficially supported?
+		};
 		const moduleName = caller();
 		// console.log( "Forking with ", { moduleName: moduleName, args: args, opts: opts } );
 		const daemon = forkProcess( moduleName, args, opts );
@@ -180,22 +190,27 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 		return daemon;
 	}
 	/** Get output from external command (what backticks do in many languages) */
-	public static async backtick( command: string, args: string[] = [], options: any = {} ): Promise<BacktickResult> { // tslint:disable-line:no-any // TODO: type for options; superset of SpawnOptions?
-		const fn: string = "Helpers.backtick";
+	public static async backtick( command: string, args: string[] = [], options: any = {} ): Promise<BacktickResult> {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  TODO: type for options; superset of SpawnOptions?
+		const fn = "Helpers.backtick";
 		return new Promise<BacktickResult>( (resolve,reject) => {
-			(async () => {
+			(async () => {  //  eslint-disable-line @typescript-eslint/require-await  --  TODO: review this design
 				try {
-					let opts: any = {}; // tslint:disable-line:no-any // TODO: type for options; copy constructor here
-					if( args && !options ) {
-						if( args.length > 1 && typeof args[args.length-1] as any === "object" ) { // tslint:disable-line:no-any // TODO: if args isn't a rest parameter, why allow the last arg to be the options?
-							opts = args.pop() as SpawnOptions;
+					let opts: SpawnOptionsWithoutStdio = {};  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  TODO: type for options; copy constructor here
+					let input = "";
+					if( "undefined" === typeof options ) {
+						if( "undefined" !== typeof args ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen
+							if( args.length > 1 && "object" === typeof args[args.length-1] ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen  //  TODO: if args isn't a rest parameter, why allow the last arg to be the options?
+								opts = args.pop() as SpawnOptionsWithoutStdio;  //  TODO: this should go to options, opts should be derived from options  //  TODO: type for options
+							}
 						}
+					} else {
+						if( "undefined" !== typeof options.env ) { opts.env = options.env; }  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment  --  not actually unsafe when reciever is not undefined  //  TODO: type for options
+						if( "undefined" !== typeof options.cwd ) { opts.cwd = options.cwd; }  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment  --  not actually unsafe when reciever is not undefined  //  TODO: type for options
+						if( "undefined" !== typeof options.input ) { input = options.input; }  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment  --  not actually unsafe when reciever is not undefined  //  TODO: type for options
 					}
-					if( options.env ) { opts.env = options.env; } // tslint:disable-line:no-unsafe-any // TODO: type for options
-					if( options.cwd ) { opts.cwd = options.cwd; } // tslint:disable-line:no-unsafe-any // TODO: type for options
-					if( !args || args.length === 0 ) {
+					if( "undefined" === typeof args || 0 === args.length ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen
 						if( /\s/.test( command ) ) {
-							opts.shell = true; // tslint:disable-line:no-unsafe-any // TODO: type for options
+							opts.shell = true;  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment  --  not actually unsafe when reciever is not undefined  //  TODO: type for options
 						}
 					}
 					// TODO: options.timeout
@@ -203,67 +218,66 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 					// console.log( fn+": args = ", args );
 					// console.log( fn+": opts = ", opts );
 
-					let out: string = "";
-					let err: string = "";
+					let out = "";
+					let err = "";
 					const log: BacktickOutputEntry[] = [];
 
 					const start: number = Helpers.unixTime();
-					const cmd = spawnProcess( command, args, opts ); // tslint:disable-line:no-unsafe-any // TODO: type for options
-					cmd.stdout.on( "data", (data) => { out += data; log.push( { time: Helpers.unixTime(), fd: "OUT", data: typeof data === "string" ? data : data.toString() } ); } );
-					cmd.stderr.on( "data", (data) => { err += data; log.push( { time: Helpers.unixTime(), fd: "ERR", data: typeof data === "string" ? data : data.toString() } ); } );
+					const cmd = spawnProcess( command, args, opts );
+					cmd.stdout.on( "data", (data) => { const data_string = "string" === typeof data ? data : String(data); out += data_string; log.push( { time: Helpers.unixTime(), fd: "OUT", data: data_string } ); } );
+					cmd.stderr.on( "data", (data) => { const data_string = "string" === typeof data ? data : String(data); err += data_string; log.push( { time: Helpers.unixTime(), fd: "ERR", data: data_string } ); } );
 					cmd.on( "close", (code:number) => {
 						const stop = Helpers.unixTime();
 						log.push( { time: stop, fd: "EXIT", data: `${code}` } );
 						resolve( {
 							code: code,
-							command: [command].concat(args||[]).join(" "),
+							command: [command].concat( "undefined" !== typeof args ? args : [] ).join(" "),  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen
 							err: err,
 							errors: err.length > 0 || code !== 0,
-							input: options.input, // tslint:disable-line:no-unsafe-any // TODO: type for options
+							input: input,
 							out: out,
 							start: start,
 							stop: stop,
 						} );
 					} );
-					if( options.input ) { cmd.stdin.write( options.input ); } // tslint:disable-line:no-unsafe-any // TODO: type for options
+					if( input.length > 0 ) { cmd.stdin.write( input ); }
 					cmd.stdin.end();
 				} catch(e) { reject( this.errorChain( e, fn ) ); }
-			})().catch( async (e) => Promise.reject( this.errorChain(e,fn) ) );
+			})().catch( async (e) => Promise.reject( this.errorChain(e,fn) ) );  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 		} );
 	}
 	/** Create a lock file both the proper way and containing our PID, starttime, and hostname */
-	public static async PIDlock( filename: string, compromised?: (err:Error)=>boolean ): Promise<()=>Promise<void>> { const fn: string = "Helpers.PIDlock"; try {
-		let releaseDir: ReleaseFn;
+	public static async PIDlock( filename: string, compromised?: (err:Error)=>boolean ): Promise<()=>Promise<void>> { const fn = "Helpers.PIDlock"; try {  //  eslint-disable-line @typescript-eslint/naming-convention,brace-style  --  keep "PID" all caps; TODO: brace-style option to allow try/catch on start & end lines
 		const release: ()=>Promise<void> = async ():Promise<void> => {
-			console.log( fn+"/release: releasing "+filename );
+			debug( `${fn}/release: releasing ${filename}` );
 			await removeFile( filename );
 			await releaseDir();
-			console.log( fn+"/release: released "+filename );
+			debug( `${fn}/release: released ${filename}` );
 		};
 		const onCompromised: (err:Error)=>void = (err):void => {
 			// TODO: default recovery attempts
 			if( compromised ) {
 				const recovered: boolean = compromised(err);
-				if( !recovered ) { release(); }
+				if( !recovered ) { release(); }  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  TODO: check how properLock handles onCompromised, confirm that release result is not lost
 			} else {
-				throw this.errorChain( err, fn+"/compromised" );
+				throw this.errorChain( err, `${fn}/compromised` );
 			}
 		};
 		const pid: number = process.pid;
-		const getStart = await this.backtick( `ps -p ${pid} -o lstart=` ); // TODO: command is os dependent
+		const getStart = await this.backtick( `ps -p ${pid} -o lstart=` ); // TODO: command is OS dependent
 		const start: number = this.unixTime( getStart.out );
 		const content: string = this.JSONify( {
-			HOST:  hostname(),
-			PID:   pid,
-			START: start,
+			HOST:  hostname(),  //  eslint-disable-line @typescript-eslint/naming-convention  --  using a different convention for file format
+			PID:   pid,         //  eslint-disable-line @typescript-eslint/naming-convention  --  using a different convention for file format
+			START: start,       //  eslint-disable-line @typescript-eslint/naming-convention  --  using a different convention for file format
 			startStr: this.humanTime( start ),
 		} );
-		releaseDir = await properLock( filename, { realpath: false, onCompromised: onCompromised } );
+		const releaseDir: ReleaseFn = await properLock( filename, { realpath: false, onCompromised: onCompromised } );
 		await writeFile( filename, content, "utf8" );
 		return release;
-	} catch(e) { throw this.errorChain( e, fn ); } }
-	/** Check weather a lock created by [[PIDlock]] is still valid */
-	public static async PIDcheck( filename: string ): Promise<PIDcheckInfo|undefined> {
+	} catch(e) { throw this.errorChain( e, fn ); } }  //  eslint-disable-line brace-style  --  TODO: brace-style option to allow try/catch on start & end lines
+	/** Check weather a lock created by {@link PIDlock} is still valid */
+	public static async PIDcheck( filename: string ): Promise<PIDcheckInfo|undefined> {  //  eslint-disable-line @typescript-eslint/naming-convention  --  keep "PID" all caps
 		const fn = "Helpers.PIDcheck";
 		// console.log( "Checking PIDfile "+filename );
 		try {
@@ -271,32 +285,32 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 			// let info = JSON.parse( await fse.readFile( filename, { encoding: "utf8" } ) );
 			const raw = await readFile( filename, { encoding: "utf8" } );
 			// console.log( "PIDfile "+filename+" contains ", raw );
-			const info = JSON.parse( raw ); // tslint:disable-line:no-unsafe-any // TODO: types for PID*
+			const info = JSON.parse( raw );  //  eslint-disable-line @typescript-eslint/no-unsafe-assignment  --  TODO: types for PID*
 			// console.log( "PIDfile "+filename+" contains ", info );
-			const getStart = await this.backtick( `ps -p ${info.PID} -o lstart=` ); // tslint:disable-line:no-unsafe-any // TODO: types for PID*
+			const getStart = await this.backtick( `ps -p ${info.PID} -o lstart=` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions,@typescript-eslint/no-unsafe-member-access  --  TODO: types for PID*
 			if( !getStart.errors ) {
 				const start = this.unixTime( getStart.out );
-				if( info.START !== start ) { // tslint:disable-line:no-unsafe-any // TODO: types for PID*
+				if( info.START !== start ) {  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access  --  TODO: types for PID*
 					// console.log( "PID "+info.PID+" start time mismatch with ", this.humanTime(start) );
-					return undefined; // process ID has been recycled, return falsy
+					return undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that the specified file does not represent a current lock
 				}
 				// console.log( "PID "+info.PID+" start time match with ", this.humanTime(start) );
-				return info; // tslint:disable-line:no-unsafe-any // TODO: types for PID*
-			} else if( getStart.code === 1 ) {
-				return undefined; // process dead, return falsy
+				return info;  //  eslint-disable-line @typescript-eslint/no-unsafe-return  --  TODO: types for PID*
+			} else if( 1 === getStart.code ) {
+				return undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that the specified file does not represent a current lock
 			} else {
-				throw new Error( fn + " >> Error checking start time of "+filename+"\nCONTENTS:\n"+raw+"\nBACKTICK\n"+this.JSONify(getStart) );
+				throw new Error( `${fn} >> Error checking start time of ${filename}\nCONTENTS:\n${raw}\nBACKTICK\n${this.JSONify(getStart)}` );
 			}
 		} catch(e) {
-			if( e.code && e.code === "ENOENT" ) { // tslint:disable-line:no-unsafe-any // ... this actually is safe
-				return undefined; // file missing or malformed, return falsy
+			if( e instanceof Object && "code" in e && "ENOENT" === e.code ) {
+				return undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that the specified file does not represent a current lock
 			} else {
 				throw this.errorChain(e,fn);
 			}
 		}
 	}
-	/** End the process that owns a lock created by [[PIDlock]] */
-	public static async PIDkill( filename:string, timeout:number=10 ) {
+	/** End the process that owns a lock created by {@link PIDlock} */
+	public static async PIDkill( filename:string, timeout=10 ) {  //  eslint-disable-line @typescript-eslint/naming-convention,@typescript-eslint/no-magic-numbers  --  keep "PID" all caps; magic number is ok for default value
 		const fn = "Helpers.PIDkill";
 		try {
 			let info = await this.PIDcheck( filename );
@@ -305,15 +319,15 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 				// console.log( "PIDfile "+filename+" running as "+info.PID+" since "+info.startStr );
 				process.kill( info.PID, "SIGTERM" );
 				if( !await this.poll( timeout, 1, async () => !(info = await this.PIDcheck(filename)) ) ) {
-					console.log( `PIDfile ${filename} still running as ${info.PID} after SIGTERM, sending SIGKILL` );
+					debug( `PIDfile ${filename} still running as ${info.PID} after SIGTERM, sending SIGKILL` );
 					while( info ) {
 						process.kill( info.PID, "SIGKILL" );
 						info = await this.PIDcheck(filename);
-						console.log( "after SIGKILL: ", info );
-						try { await removeFile( filename ); }
-						catch(e) { console.log( `${fn}: Error removing PID file after SIGKILL -- ${e}` ); }
-						try { await removeDir( filename+".lock" ); }
-						catch(e) { console.log( `${fn}: Error removing PID lock after SIGKILL -- ${e}` ); }
+						debug( "after SIGKILL: ", info );
+						try { await removeFile( filename ); }  //  eslint-disable-line brace-style  --  TODO: brace-style option to allow this style, maybe according to line length or block complexity
+						catch(e) { console.log( `${fn}: Error removing PID file after SIGKILL -- ${e}` ); }  //  eslint-disable-line no-console,@typescript-eslint/restrict-template-expressions  --  TODO: callback for error logging; TODO: helper for error standardization
+						try { await removeDir( `${filename}.lock` ); }  //  eslint-disable-line brace-style  --  TODO: brace-style option to allow this style, maybe according to line length or block complexity
+						catch(e) { console.log( `${fn}: Error removing PID lock after SIGKILL -- ${e}` ); }  //  eslint-disable-line no-console,@typescript-eslint/restrict-template-expressions  --  TODO: callback for error logging; TODO: helper for error standardization
 					}
 				// } else {
 				// 	console.log( "PIDfile "+filename+" removed after SIGTERM" );
@@ -324,81 +338,84 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 		}
 	}
 	/** Turn a function that takes a callback into a function that returns a Promise */
-	public static async asyncify<T,E=any>( oldf:(...args:any[])=>void, ...args: any[] ): Promise<T> { // tslint:disable-line:no-any // Can't be generic without using any
+	public static async asyncify<T,E=any>( oldf:(...args:any[])=>void, ...args: any[] ): Promise<T> {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  default to any so it works by default
 		const fn = "Helpers.asyncify";
 		return new Promise<T>( (resolve,reject): void => {
-			let check:boolean = false;
+			let check = false;
 			const callback = ( err:E, res:T ) => {
 				check = true;
-				if(err) { reject(err); } else { resolve(res); }
+				if( "undefined" !== typeof err) { reject(err); } else { resolve(res); }
 			};
 			args.push(callback);
 			try {
 				oldf( args );
-				if( !check ) { console.warn( fn + ": function returned before callback invoked; either it started something asynchronous, or this chain is doomed" ); }
+				if( !check ) { console.warn( `${fn}: function returned before callback invoked; either it started something asynchronous, or this chain is doomed` ); }  //  eslint-disable-line no-console  --  TODO: what's the right way to do this?
 			} catch( e ) { reject(e); return; }
 		} );
 	}
 	/** Each call returns the next entry in the given cycle; defaults to English capital letters */
-	public static cycler<T=string>( ...args:(T|T[])[] ): ()=>T { // tslint:disable-line:no-any // any for overloading
+	public static cycler<T=string>( ...args:(T|T[])[] ): ()=>T {
 		const list: T[] = args.length > 0
-			? args.length === 1 && args[0] instanceof Array
-				? args[0] as T[]
+			? 1 === args.length && args[0] instanceof Array
+				? args[0]
 				: args as T[]
-			: ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"] as {} as T[]; // tslint:disable-line:no-any // any for overloading
+			: ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"] as T[];
 		let i = list.length-1;
 		if( i <= 0 ) { throw new Error( "Helpers.cycler: cycle must contain at least one entry" ); }
 		return () => { i = i >= list.length-1 ? 0 : i+1; return list[i]; };
 	}
 	/** Tests whether a given value is Thenable */
-	public static isThenable( p: any ): p is Thenable<any> { // tslint:disable-line:no-any // any for overloading
-		return !!p && (typeof p === "object" || typeof p === "function") && typeof p.then === "function"; // tslint:disable-line:no-unsafe-any // Can't be generic without using any
+	public static isThenable( p: any ): p is Thenable<any> {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any because this is a type discriminator
+		return ("undefined" !== typeof p) && ( "object" === typeof p || "function" === typeof p) && "function" === typeof p.then;  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access  --  any because this is a type discriminator
 	}
 	/** Tests whether a given value is "PromiseLike" in that it's Thenable */
-	public static isPromiseLike( p: any ): p is PromiseLike<any> { // tslint:disable-line:no-any // any for overloading
+	public static isPromiseLike( p: any ): p is PromiseLike<any> {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any because this is a type discriminator
 		return this.isThenable( p );
 	}
 	/** Returns the then method, if and only if p is thenable */
-	public static thenIfThenable<T=any>( p: any ): AbortableThen<T> | undefined { // tslint:disable-line:no-any // any for overloading
-		if( !!p && (typeof p === "object" || typeof p === "function") ) {
-			const then: AbortableThen<T> | undefined = p.then; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof then === "function" ? then.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+	public static thenIfThenable<T=any>( p: any ): AbortableThen<T> | undefined {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any because this is a type discriminator
+		if( ("undefined" !== typeof p) && ( "object" === typeof p || "function" === typeof p) ) {
+			const then: AbortableThen<T> | undefined = p.then;  //  eslint-disable-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access  --  any because this is a type discriminator  //  p.then must be copied to pass promise test with thenable that can only be then'd once
+			return "function" === typeof then ? then.bind( p ) : undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that p is not thenable
 		} else {
-			return undefined;
+			return undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that p is not thenable
 		}
 	}
 	/** Returns the catch method, if and only if p is catchable */
-	public static catchIfCatchable( p: any ): typeof Promise.prototype.catch | undefined { // tslint:disable-line:no-any // any for overloading
-		if( !!p && (typeof p === "object" || typeof p === "function") ) {
-			const _catch: typeof Promise.prototype.catch | undefined = p.catch; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof _catch === "function" ? _catch.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+	public static catchIfCatchable( p: any ): typeof Promise.prototype.catch | undefined {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any because this is a type discriminator
+		if( ("undefined" !== typeof p) && ( "object" === typeof p || "function" === typeof p) ) {
+			const _catch: typeof Promise.prototype.catch | undefined = p.catch;  //  eslint-disable-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/dot-notation  --  any because this is a type discriminator; dot-keyword because that's the spec
+			return "function" === typeof _catch ? _catch.bind( p ) : undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that p is not catchable
 		} else {
-			return undefined;
+			return undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that p is not catchable
 		}
 	}
 	/** Returns the aborted method, if and only if p is abortedable */
-	public static abortedIfAbortedable<T=any>( p: any ): AbortableAborted<T> | undefined { // tslint:disable-line:no-any // any for overloading
-		if( !!p && (typeof p === "object" || typeof p === "function") ) {
-			const aborted: AbortableAborted<T> | undefined = p.aborted; // tslint:disable-line:no-unsafe-any // any for overloading
-			return typeof aborted === "function" ? aborted.bind( p ) : undefined; // tslint:disable-line:no-unsafe-any // any for overloading
+	public static abortedIfAbortedable<T=any>( p: any ): AbortableAborted<T> | undefined {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any because this is a type discriminator
+		if( ("undefined" !== typeof p) && ( "object" === typeof p || "function" === typeof p) ) {
+			const aborted: AbortableAborted<T> | undefined = p.aborted;  //  eslint-disable-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access  --  any because this is a type discriminator
+			return "function" === typeof aborted ? aborted.bind( p ) : undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that p is not abortedable
 		} else {
-			return undefined;
+			return undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that p is not abortedable
 		}
 	}
 	/** Tests whether a given value looks like it will quack like a Promise */
-	public static isPromise( p: any ): p is Promise<any> { // tslint:disable-line:no-any // Can't be generic without using any
-		return this.isThenable(p) && typeof (p as any).catch === "function"; // tslint:disable-line:no-any no-unsafe-any // any for overloading
+	public static isPromise( p: any ): p is Promise<any> {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any because this is a type discriminator
+		return this.isThenable(p) && "function" === typeof (p as any).catch;  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-explicit-any,@typescript-eslint/dot-notation  --  any because this is a type discriminator; dot-keyword because that's the spec
 	}
 	/** try-catch with else before finally */
-	public static tryCatchElseFinally( tryBlk: ()=>void, catchBlk: (e:any)=>void, elseBlk: ()=>void, finallyBlk?: ()=>void ) { // tslint:disable-line:no-any // any for compatibility
+	public static tryCatchElseFinally<T=any>( tryBlk: ()=>T, catchBlk: (e:unknown)=>T, elseBlk?: (try_result:T)=>T, finallyBlk?: (result:T|undefined,error:unknown)=>void ): [T|undefined,unknown] {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  default to any so it works by default
+		let result: T | undefined;
+		let error: unknown;
 		try {
 			let success = false;
-			try { tryBlk(); success = true; }
-			catch(e) { catchBlk(e); }
-			if(success) { elseBlk(); }
+			try { result = tryBlk(); success = true; }  //  eslint-disable-line brace-style  --  TODO: brace-style option to allow this style, maybe according to line length or block complexity
+			catch(e) { error = e; result = catchBlk(e); }
+			if(success && elseBlk) { result = elseBlk(result); }
 		} finally {
-		  if( finallyBlk ) { finallyBlk(); }
+			if( finallyBlk ) { finallyBlk( result, error ); }
 		}
+		return [ result, error ];
 	}
 	/**
 	 * Enable original source locations in Node stack traces involving code compiled to javascript;
@@ -406,28 +423,29 @@ export class Helpers { // tslint:disable-line:no-unnecessary-class
 	 */
 	public static enableSourceMaps() {
 		try {
-			require("source-map-support").install(); // tslint:disable-line:no-require-imports no-implicit-dependencies no-unsafe-any
+			require("source-map-support").install();  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call,import/no-extraneous-dependencies,@typescript-eslint/no-require-imports,@typescript-eslint/no-var-requires  --  ignore safeguards for debugging helper
 			return true;
-		} catch(e) {
+		} catch(unused_e) {
 			return false;
 		}
 	}
 	/** Tries to identify the type of x */
-	public static whatIs( x: any ): string { // tslint:disable-line:no-any // accepting any is the point here
+	public static whatIs( x: any ): string {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any because this is a type discriminator
 		let r: string = typeof x;
-		if( typeof x === "object" ) {
-			if( x === null ) { r = "null"; }
-			else {
+		if( "object" === typeof x ) {
+			if( null === x ) {  //  eslint-disable-line no-null/no-null  --  trying to detect null
+				r = "null";
+			} else {
 				// TODO: detect more things
 			}
 		}
 		return r;
 	}
 	/** Convert any object into a (possibly meaningless) string */
-	public static stringify( x: any ):string { // tslint:disable-line:no-any // accepting any is the point here
-		if( typeof x !== "object" ) { return `${x}`; } // tslint:disable-line:no-unsafe-any // accepting any is the point here
-		if( x === null ) { return "null"; }
-		if( typeof x.toString === "function" ) { return x.toString(); } // tslint:disable-line:no-unsafe-any // accepting any is the point here
+	public static stringify( x: unknown ):string {
+		if( "object" !== typeof x ) { return `${x}`; }  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  primitives are safe to stringify
+		if( null === x ) { return "null"; }  //  eslint-disable-line no-null/no-null  --  string representation of null
+		if( "function" === typeof x.toString ) { return x.toString(); }  //  eslint-disable-line @typescript-eslint/tslint/config  --  not all objects define their own string representation  //  TODO: check that toString returns a string?
 		return this.JSONify( x );
 	}
 }
@@ -440,22 +458,22 @@ export interface IAsyncNew {
 
 export type BacktickResult = {
 	/** unixtime of command start */
-	start: number,
+	start: number;
 	/** command or command and parameters */
-	command: string | string[],
+	command: string | string[];
 	/** input given on stdin after command is started */
-	input: string,
+	input: string;
 	/** output command wrote to stdout */
-	out: string,
+	out: string;
 	/** output command wrote to stderr */
-	err: string,
+	err: string;
 	/** exit code */
-	code: number,
+	code: number;
 	/** unixtime of command exit */
-	stop: number,
+	stop: number;
 	/** true if stdout was written to or code is nonzero */
-	errors: boolean,
+	errors: boolean;
 };
 
-type BacktickOutputEntry = {time:number,fd:"OUT"|"ERR"|"EXIT",data:string}; // tslint:disable-line: completed-docs // not documenting properties for types
-type PIDcheckInfo = {HOST:string,PID:number,START:number,startStr:string}; // tslint:disable-line: completed-docs // not documenting properties for types
+type BacktickOutputEntry = { time: number; fd: "OUT"|"ERR"|"EXIT"; data: string };
+type PIDcheckInfo        = { HOST: string; PID: number; START: number; startStr: string };  //  eslint-disable-line @typescript-eslint/naming-convention  --  using a different convention for file format

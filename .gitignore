@@ -4,4 +4,3 @@ coverage/
 doc/
 node_modules/
 reports/
-package-lock.json

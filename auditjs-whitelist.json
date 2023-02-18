@@ -1,0 +1,3 @@
+{
+	"ignore": [{ "id": "78a61524-80c5-4371-b6d1-6b32af349043", "reason": "Example Whitelist entry; see https://www.npmjs.com/package/auditjs#user-content-whitelisting" }]
+}

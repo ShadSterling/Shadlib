@@ -1,7 +1,7 @@
 declare module "proper-lockfile" {
-	export type LockOptions = {}; // TODO
-	export type UnlockOptions = {}; // TODO
-	export type CheckOptions = {}; // TODO
+	export type LockOptions   = object; // TODO: real definition
+	export type UnlockOptions = object; // TODO: real definition
+	export type CheckOptions  = object; // TODO: real definition
 	export type ReleaseFn = ()=>Promise<void>;
 	export function lock( file: string, options?: LockOptions ): Promise<ReleaseFn>;
 	export function unlock( file: string, options?: UnlockOptions ): Promise<void>;

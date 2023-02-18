@@ -1,11 +1,13 @@
-import { describe, } from "mocha"; // tslint:disable-line:no-implicit-dependencies
+/*  eslint-disable import/no-extraneous-dependencies,import/order  --  this is a test spec; TODO: import/order option to sort by imported name rather than import source name  */
 
-import * as promisesAPlusTests from "promises-aplus-tests"; // tslint:disable-line:no-implicit-dependencies
+import { describe } from "mocha";
 
-import { install } from "source-map-support"; // tslint:disable-line:no-implicit-dependencies // it's a dev dependency; testing is part of dev
+import * as promisesAPlusTests from "promises-aplus-tests-refreshed";
+
+import { install } from "source-map-support";
 install();
 
-import { promisesFinallyTests } from "../testlib/promises-finally-tests";
+import * as promisesFinallyTests from "../testlib/promises-finally-tests";
 
 import { Asyncable } from "../lib/Asyncable/Asyncable";
 
