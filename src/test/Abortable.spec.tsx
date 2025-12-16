@@ -1,9 +1,9 @@
 /*  eslint-disable import/no-extraneous-dependencies,@typescript-eslint/require-await,import/order  --  this is a test spec; awaits are handled by test framework; TODO: import/order option to sort by imported name rather than import source name  */
 
 import { describe } from "mocha";
-import { expect } from "chai";
+import { expect   } from "chai";
 
-import { install } from "source-map-support";
+import { install  } from "source-map-support";
 install();
 
 // import * as promisesAPlusTests from "promises-aplus-tests-refreshed";  //  TODO: this doesn't pass; fix based on Asyncable

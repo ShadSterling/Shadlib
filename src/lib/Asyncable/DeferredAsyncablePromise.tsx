@@ -45,7 +45,7 @@ export class DeferredAsyncablePromise<T> implements Deferred<T> {
 	/** Settles {@link promise} to rejected */
 	public reject( reason: any ): void {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any is necessary for compatibility with Promise
 		debug( `${this.label()}/rejectPromise: Invoked` );
-		this._rejecter( reason );  //  eslint-disable-line @typescript-eslint/no-unsafe-call  --  any is necessary for compatibility with Promise
+		this._rejecter( reason );
 		debug( `${this.label()}/rejectPromise: Finished` );
 	}
 
@@ -53,9 +53,9 @@ export class DeferredAsyncablePromise<T> implements Deferred<T> {
 	public toString(): string { return `[object ${this.label()}]`; }
 
 	/** Gets the label of this {@link DeferredAsyncablePromise} (for logging and debugging) */
-	public label( fn?: string ) {
-		if( "undefined" === typeof this.promise ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  this can get called before initialization gets far enough to set _asyncable
-			return `DeferredAsyncablePromise<  construction in progress   >${ "undefined" !== typeof fn ? `.${fn}` : "" }`;  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
+	public label( fn?: string ): string {
+		if( "undefined" === typeof this.promise ) {  //  eslint-disable-line tslint/config  --  this can get called before initialization gets far enough to set _asyncable
+			return `DeferredAsyncablePromise<  construction in progress   >${ "undefined" !== typeof fn ? `.${fn}` : "" }`;
 		} else {
 			return this.promise.label( fn ).replace( /^AsyncablePromise</, "DeferredAsyncablePromise<" );
 		}

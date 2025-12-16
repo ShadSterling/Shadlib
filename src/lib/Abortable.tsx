@@ -22,7 +22,7 @@
 // TODO: Abstract Abortable from Promise, then make AbortablePromise implement both
 // TODO: Result of all should be an array of {result,error,reason,capabilities} objects
 // TODO: Results of any and race should be {winner,allResults} objects
-// TODO: some methods would benefit from a Ttester: (t:T)=>t is T parameter
+// TODO: some methods would benefit from a Tester: (t:T)=>t is T parameter
 // TODO: separate out Adapter for promises-aplus-test?
 // TODO: rather than never resolving, the default aborter should pend until another aborter is assigned, runs, and completes
 // TODO: separate classes for derived abortables
@@ -32,7 +32,7 @@
 // TODO: spin off & use "Thread-ish" class to give debug messages when starting/ending new "threads"; maybe roll in stack tracking & "thread" IDs...
 
 import * as debugFactory from "debug";
-const debug: debugFactory.IDebugger = debugFactory( "Abortable" );  //  eslint-disable-line @typescript-eslint/naming-convention -- use lowercase "debug" consistent with widespread convention
+const debug: debugFactory.IDebugger = debugFactory( "Abortable" );
 
 import { Helpers } from "./Helpers";
 
@@ -41,14 +41,17 @@ export type AbortableStarter<T> = ( ac: AbortableController<T>, ) => void;
 export type AbortableAborter<T> = ( message: string|undefined, ac: AbortableController<T>, ) => void | Promise<void>;
 export type AbortablePrepared<T> = { starter: AbortableStarter<T>; aborter: AbortableAborter<T> };
 export type AbortablePrestartPreparer<T> = ( resolve: ( value?: T | PromiseLike<T> ) => void, reject: ( reason?: any ) => void, ac?: AbortableController<T> ) => void;  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any is necessary for compatibility with Promise
-export type AbortableCallbackSuccess<T,TResult1=T> = ( result: T     ) => TResult1 | PromiseLike<TResult1>;
-export type AbortableCallbackFailure<T,TResult2=T> = ( error:  Error ) => TResult2 | PromiseLike<TResult2>;
-export type AbortableCallbackAbort<    TResult  > = ( reason: string ) => TResult | PromiseLike<TResult>;
+export type AbortableCallbackSuccess<T,TResult1=T> = ( result: T      ) => TResult1 | PromiseLike<TResult1>;
+export type AbortableCallbackFailure<T,TResult2=T> = ( error:  Error  ) => TResult2 | PromiseLike<TResult2>;
+export type AbortableCallbackAbort<    TResult   > = ( reason: string ) => TResult  | PromiseLike<TResult>;
+export type AbortableCallbackFinally               = (                ) => void;
+export type AbortableCallbackEnsure< T,TResult =T> = ( result?: TResult|undefined, error?: Error|undefined, message?:string|undefined )=> TResult | PromiseLike<TResult>;  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
 export type AbortableState = "constructing"|"ready"|"running"|"paused"|"idle"|"succeded"|"failed"|"aborted"; // TODO: use enum
-type AbortableAlternatePrep<T> = { state: "succeded"; value: T } | { state: "failed"; value: Error } | { state: "aborted"; value: string };
+type AbortableAlternatePrep<T> = { state: "succeded"; value: T } | { state: "failed"; value: Error } | { state: "aborted"; value: string };  //  TODO: rename to something like AbortablePresettledPrep, go ahead and export it
 export type AbortableThen<T, TResult1=T, TResult2=never> = ( onfulfilled?: AbortableCallbackSuccess<T,TResult1>, onrejected?:  AbortableCallbackFailure< T,TResult2>, ) => Abortable<TResult1 | TResult2>;
-export type AbortableAborted<TResult> = ( onAbort?: AbortableCallbackAbort<TResult> | undefined | null ) => Abortable<TResult>;
-type DeferredAbortable<T> = { promise:Abortable<T>; resolve:(t:T)=>void; reject:(e:Error)=>void; abort:(r:string)=>void };
+export type AbortableAborted<TResult> = ( onAbort?: AbortableCallbackAbort<TResult> | undefined | null ) => Abortable<TResult>;  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
+/** Alternate representation of a Promise-compatible type, required by the [Promise test suite](https://github.com/promises-aplus/promises-tests).  This is older than the now-standard promise constructor, which is not used by the test suite.  Construct these with {@link Abortable.deferred} */
+export type DeferredAbortable<T> = { promise:Abortable<T>; resolve:(t:T)=>void; reject:(e:Error)=>void; abort:(r:string)=>void };
 
 //TODO: make these methods? re-enable only-arrow-functions?
 /** A function that does nothing */
@@ -58,9 +61,9 @@ function nullStarter<T=void>(): AbortableStarter<T> { return nullFunction; }
 /** Returns a valid AbortableAborter that does nothing (the task will be marked as aborted without any action) */
 function nullAborter<T=void>(): AbortableAborter<T> { return nullFunction; }
 /** Returns a valid AbortablePrepared that does nothing (the task will never complete) */
-function nullPrepared<T=void>(): AbortablePrepared<T> { return { starter: nullStarter<T>(), aborter: nullAborter<T>() }; }  //  eslint-disable-line sort-keys  --  TODO: sort-keys option to require literals to match declarations
+function nullPrepared<T=void>(): AbortablePrepared<T> { return { starter: nullStarter<T>(), aborter: nullAborter<T>() }; }  //  eslint-disable-line sort-keys  --  TODO: sort-keys option to require literals to match declaration order
 
-const nextSuffix = Helpers.cycler();
+const nextSuffix: ()=>string = Helpers.cycler();
 
 /**
  * Promise-compatible representation of an asynchronous task that can be aborted.
@@ -78,7 +81,7 @@ export class Abortable<T> implements Promise<T> {
 	}
 	/** Returns an {@link Abortable} which has already failed */
 	public static failure<U=never>(error:Error):Abortable<U> {
-		const prep: AbortablePreparer<U> | AbortableAlternatePrep<U> = false  //  eslint-disable-line no-constant-condition  --  allow for illustration of both options
+		const prep: AbortablePreparer<U> | AbortableAlternatePrep<U> = false  //  eslint-disable-line no-constant-condition,@typescript-eslint/no-unnecessary-condition  --  allow for illustration of both options  //  TODO: put illustrations in an appropriate place
 			? (ac:AbortableController<U>) => { ac.failure(error); }
 			:  { state: "failed", value: error };
 		const r = new this<U>(prep);
@@ -109,10 +112,10 @@ export class Abortable<T> implements Promise<T> {
 					debug( `${p.label}: resolvePromise Invoked (NEW SYNC)` );
 					c.success(t);
 					debug( `${p.label}: resolvePromise Completed (END SYNC)` );
-				}, 0 );  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  Timeout of zero to use setTimeout to make the block asynchronous  //  TODO: replace use of setTimeout to make a block asynchronous with Helpers.asyncMacro; update asyncMacro to preserve stack trace (maybe by doing something rediculous like setting up a context where Error is replaced with a wrapper that backfills the stack from before the asyncronous branch)
+				}, 0 );  //  Timeout of zero to use setTimeout to make the block asynchronous  //  TODO: replace use of setTimeout to make a block asynchronous with Helpers.asyncMacro; update asyncMacro to preserve stack trace (maybe by doing something rediculous like setting up a context where Error is replaced with a wrapper that backfills the stack from before the asyncronous branch)
 			}, // ... hopefully the constructor will finish before this is queued
-			reject: ( e: Error  ) => { setTimeout( ()=>{ c.failure(e); }, 0 ); },  //  TODO: replace use of setTimeout to make a block asynchronous with Helpers.asyncMacro; update asyncMacro to preserve stack trace (maybe by doing something rediculous like setting up a context where Error is replaced with a wrapper that backfills the stack from before the asyncronous branch)  //  TODO: make it clear that the constructor will always finish before this runs
-			abort:  ( r: string ) => { setTimeout( ()=>{ p.abort(r);   }, 0 ); },  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  Abortable can't fail after aborting  //  TODO: make it clear that the constructor will always finish before this runs
+			reject: ( e: Error  ) => { setTimeout( ()=>{ c.failure(e); }, 0 ); },  //  eslint-disable-line sort-keys  --  TODO: sort-keys option to require literals to match declaration order  //  TODO: replace use of setTimeout to make a block asynchronous with Helpers.asyncMacro; update asyncMacro to preserve stack trace  //  TODO: make it clear that the constructor will always finish before this runs
+			abort:  ( r: string ) => { setTimeout( ()=>{ p.abort(r);   }, 0 ); },  //  eslint-disable-line @typescript-eslint/no-floating-promises,sort-keys  --  Abortable can't fail after aborting, TODO: sort-keys option to require literals to match declaration order  //  TODO: make it clear that the constructor will always finish before this runs
 		};
 	}
 	/**
@@ -140,13 +143,13 @@ export class Abortable<T> implements Promise<T> {
 		const r = new Abortable( (ac) => {
 			const indexes:  Set<number>             = new Set<number>(); // indicies into args of entries which are pending
 			const pending:  PromiseLike<any>[]      = [];  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any is necessary for unlimited varargs  //  entries in args which have yet to settle
-			const success: (PromiseLike<any>|any)[] = [];  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any is necessary for unlimited varargs  //  entries in args which settled to success
+			const success: (PromiseLike<any>|any)[] = [];  //  eslint-disable-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-redundant-type-constituents  --  any is necessary for unlimited varargs  //  entries in args which settled to success
 			const failure: (Error|string)[]         = [];  // entries in args which settled to failure
 			let abortBlocked = false;
 			let firstfail: number | undefined;
-			// const values: (X|PromiseLike<X>|Error)[] = (1 === args.length && args[0] instanceof Array) ? args[0] : args;  //  eslint-disable-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-magic-numbers  --  any is necessary for unlimited varargs; "magic numbers" are ok for interpreting positional args
+			// const values: (X|PromiseLike<X>|Error)[] = (1 === args.length && args[0] instanceof Array) ? args[0] : args;  //  eslint-disable-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-redundant-type-constituents,@typescript-eslint/no-magic-numbers  --  any is necessary for unlimited varargs; "magic numbers" are ok for interpreting positional args
 			// const values: (any|PromiseLike<any>|Error)[] = (1 === args.length && args[0] instanceof Array) ? args[0] : args;  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  "magic numbers" are ok for interpreting positional args
-			const values: (any|PromiseLike<any>|Error)[] = (1 === args.length && args[0] instanceof Array) ? args[0] : args;  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any is necessary for unlimited varargs
+			const values: (any|PromiseLike<any>|Error)[] = (1 === args.length && args[0] instanceof Array) ? args[0] : args;  //  eslint-disable-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-redundant-type-constituents  --  any is necessary for unlimited varargs
 			for( let i = 0; i < values.length; i++ ) {
 				const value = values[i];  //  eslint-disable-line @typescript-eslint/no-unsafe-assignment  --  any is necessary for unlimited varargs
 				if( Helpers.isPromise( value ) ) {
@@ -176,10 +179,10 @@ export class Abortable<T> implements Promise<T> {
 				p.then(
 					(result:PromiseLike<T>|T) => {
 						indexes.delete(i);  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords by name, maybe per type, or just allow anArray.delete specifically
-						success[i] = result;  //  eslint-disable-line @typescript-eslint/no-unsafe-assignment  --  any is necessary for unlimited varargs
+						success[i] = result;
 						maySettle();
 					},
-					nullFunction
+					nullFunction,
 				);
 				if( Helpers.isPromise( p ) ) {
 					p.catch( (error:Error) => {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords by name, maybe per type, or just allow aPromise.catch specifically
@@ -207,7 +210,7 @@ export class Abortable<T> implements Promise<T> {
 						if( value instanceof Abortable ) { value.start(); }  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  start returns self, doesn't need additional error handling
 					} );
 				},
-				aborter: async (message?:string):Promise<void> => new Promise<void>(
+				aborter: async (message?:string):Promise<void> => new Promise<void>(  //  eslint-disable-line sort-keys  --  TODO: sort-keys option to require literals to match declaration order
 					(resolve,_reject) => {
 						indexes.forEach( (h) => {  //  eslint-disable-line no-restricted-properties  --  TODO: no-restricted-properties forEach exception for container type Set
 							const i = h; // ensure separate binding for each callback // TODO: is this necessary?
@@ -221,7 +224,7 @@ export class Abortable<T> implements Promise<T> {
 							} else { abortBlocked = true; }
 						} );
 						return;
-					}
+					},
 				),
 			};
 		} );
@@ -252,7 +255,7 @@ export class Abortable<T> implements Promise<T> {
 			const values: any[] = ( 1 === args.length && args[0] instanceof Array ) ? args[0] : args;  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any is necessary for unlimited varargs
 			let done = false;
 			const abortentry = ( msg: string, i: number ) => {
-				if( values[i] instanceof Abortable ) { values[i].abort( msg ); }  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call  --  any is necessary for unlimited varargs
+				if( values[i] instanceof Abortable ) { values[i].abort( msg ); }  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  trusting caller to have established abort handlers prior to race
 			};
 			const conclude = ( msg: string, skip: number ) => {
 				if( !done ) {
@@ -276,7 +279,7 @@ export class Abortable<T> implements Promise<T> {
 			}
 			return {
 				starter: (_ac2) => { for( const arg of values ) { if( arg instanceof Abortable ) { arg.start(); } } },  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  start returns self, doesn't need additional error handling  //  start function
-				aborter: async (message:string|undefined,_ac2:AbortableController<void>):Promise<void> => new Promise<void>(  //  abort function
+				aborter: async (message:string|undefined,_ac2:AbortableController<void>):Promise<void> => new Promise<void>(  //  eslint-disable-line sort-keys  --  TODO: sort-keys option to require literals to match declaration order  //  abort function
 					(resolve,_reject) => {
 						let remaining = values.length;
 						for( let h = 0; h < values.length; h++ ) {
@@ -288,7 +291,7 @@ export class Abortable<T> implements Promise<T> {
 									if( remaining <= 0 ) { resolve(); }
 								} );
 							} else if( Helpers.isPromiseLike( value ) ) {
-								remaining = +Infinity; // If there are non-abortable promiselikes, abort can't complete
+								remaining = Infinity; // If there are non-abortable promiselikes, abort can't complete
 							}
 						}
 						return;
@@ -296,7 +299,7 @@ export class Abortable<T> implements Promise<T> {
 				),
 			};
 		} );
-		return r;  //  eslint-disable-line @typescript-eslint/no-unsafe-return  --  any is necessary for unlimited varargs
+		return r;
 	}
 
 	/** For compatibility with Promises */
@@ -358,7 +361,7 @@ export class Abortable<T> implements Promise<T> {
 	 * - Throws if task has settled
 	 * @returns self
 	 */
-	public start(): Abortable<T> {
+	public start(): this {
 		switch( this._as.state ) {
 			case "constructing":
 				throw new Error( `Cannot start while still ${this._as.state}` ); // TODO: start on completion of construction
@@ -393,7 +396,7 @@ export class Abortable<T> implements Promise<T> {
 	 * (cooperative-multitasking-style)
 	 * @returns self
 	 */
-	public pause(): Abortable<T> { // change state from running to paused
+	public pause(): this { // change state from running to paused
 		switch( this._as.state ) {
 			case "constructing":
 				throw new Error( `Cannot pause while still ${this._as.state}` ); // TODO: pause on completion of construction
@@ -418,7 +421,7 @@ export class Abortable<T> implements Promise<T> {
 	 * - Throws if task hasn't started or has settled
 	 * @returns self
 	 */
-	public resume():Abortable<T> {
+	public resume(): this {
 		switch( this._as.state ) {
 			case "constructing":
 				throw new Error( `Cannot resume while still ${this._as.state}` );
@@ -453,7 +456,7 @@ export class Abortable<T> implements Promise<T> {
 	 * (cooperative-multitasking-style)
 	 * @returns self
 	 */
-	public abort( message?: string ):Abortable<T> {
+	public abort( message?: string ): this {
 		switch( this._as.state ) {
 			case "constructing": // TODO: abort on completion of construction?
 			case "ready": case "paused": case "idle":
@@ -479,9 +482,9 @@ export class Abortable<T> implements Promise<T> {
 	 * @returns An abortable representing both the prior task and the callback as a single task
 	 */
 	public then<TResult1=T,TResult2=never>( // TODO: allow passing an Abortable which will be started after this one
-		onSuccess?: AbortableCallbackSuccess<T,TResult1> | undefined | null,
-		onFailure?: AbortableCallbackFailure<T,TResult2> | undefined | null,
-		onAbort?:   AbortableCallbackAbort<    TResult1> | undefined | null,
+		onSuccess?: AbortableCallbackSuccess<T,TResult1> | undefined | null,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
+		onFailure?: AbortableCallbackFailure<T,TResult2> | undefined | null,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
+		onAbort?:   AbortableCallbackAbort<    TResult1> | undefined | null,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
 	): Abortable<TResult1|TResult2> { // TODO: allow success, failure, and abort to return different types
 		const fn = `${this.label}.then`;
 		debug( `${fn}: Invoked in state ${this._as.state}` );
@@ -490,7 +493,7 @@ export class Abortable<T> implements Promise<T> {
 			case "constructing": case "ready": case "running": case "paused": case "idle": {
 				r = new Abortable<TResult1|TResult2>( (_ac2) => ( {
 					starter: nullStarter<TResult1|TResult2>(),
-					aborter: ( (message,_ac3) => { this.abort( message ); } ),  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  Abortable can't fail after aborting
+					aborter: ( (message,_ac3) => { this.abort( message ); } ),  //  eslint-disable-line @typescript-eslint/no-floating-promises,sort-keys  --  Abortable can't fail after aborting, TODO: sort-keys option to require literals to match declaration order
 				} ) );
 				const ac: AbortableController<TResult1|TResult2> = r._as.ac;
 				this._as.onSuccess.push(
@@ -534,20 +537,20 @@ export class Abortable<T> implements Promise<T> {
 				if( "function" === typeof onFailure ) {
 					// r = AbortableShared.prepHelper<TResult>( () => onFailure(this._as.error as Error) ); // state "failed" implies _as.error is set
 					r = new Abortable<TResult1|TResult2>( (ac2) => {
-						setTimeout( () => ac2.success( onFailure(this._as.error as Error) ), 0 ); // state "failed" implies _as.error is set
+						setTimeout( () => ac2.success( onFailure( this._as.error as Error ) ), 0 ); // state "failed" implies _as.error is set
 						return nullPrepared<TResult1|TResult2>();
 					} );
 				} else {
 					// const prep: AbortableAlternatePrep<TResult> = { state: "failed", value: this._as.error as Error }; // state "failed" implies _as.error is set
 					// r = new Abortable( prep as {} as AbortablePreparer<TResult> );
-					r = new Abortable<TResult1|TResult2>( (ac2) => ac2.failure( this._as.error as Error) ); // state "failed" implies _as.error is set
+					r = new Abortable<TResult1|TResult2>( (ac2) => ac2.failure( this._as.error as Error ) ); // state "failed" implies _as.error is set
 				}
 				break;
 			case "aborted":
 				if( "function" === typeof onAbort ) {
 					// r = AbortableShared.prepHelper<TResult>( () => onAbort(this._as.reason as string) ); // state "aborted" implies _as.reason is set
 					r = new Abortable<TResult1|TResult2>( (ac2) => {
-						setTimeout( () => ac2.success( onAbort(this._as.reason as string) ), 0 ); // state "aborted" implies _as.reason is set
+						setTimeout( () => ac2.success( onAbort( this._as.reason as string ) ), 0 ); // state "aborted" implies _as.reason is set
 						return nullPrepared<TResult1|TResult2>();
 					} );
 				} else {
@@ -566,8 +569,8 @@ export class Abortable<T> implements Promise<T> {
 	 * @returns An abortable representing both the prior task and the callback as a single task
 	 */
 	public catch<TResult2=T>(
-		onFailure?: AbortableCallbackFailure<T,TResult2> | undefined | null,
-		onAbort?:   AbortableCallbackAbort<  T         > | undefined | null,
+		onFailure?: AbortableCallbackFailure<T,TResult2> | undefined | null,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
+		onAbort?:   AbortableCallbackAbort<  T         > | undefined | null,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
 	): Abortable<TResult2|T> { // TODO: break from promise spec and return strictly Abortable<TResult>
 		return this.then<T,TResult2>( undefined, onFailure, onAbort );  //  eslint-disable-line no-undefined  --  use undefined for currying
 	}
@@ -576,23 +579,27 @@ export class Abortable<T> implements Promise<T> {
 	 * @returns An abortable representing both the prior task and the callback as a single task
 	 */
 	public aborted<TResult>(
-		onAbort?:   AbortableCallbackAbort<    TResult> | undefined | null,
+		onAbort?:   AbortableCallbackAbort<    TResult> | undefined | null,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
 	): Abortable<TResult> {
 		return this.then<TResult>( undefined, undefined, onAbort );  //  eslint-disable-line no-undefined  --  use undefined for currying
 	} // TODO: attach callback to abort
 	/**
 	 * Attaches a callback to be invoked when the task represented by this {@link Abortable} is settled.
 	 * This callback can only affect the settled value of the resulting {@link Abortable} by throwing an error
-	 * @returns An abortable representing both the prior task and the callback as a single task,
+	 * (When implemented will) \@returns An abortable representing both the prior task and the callback as a single task,
 	 * which settles to the same result as the prior task.
 	 */
-	public finally( onfinally?:(()=>void)|undefined|null ):Abortable<T> {throw new Error(`UNIMPLEMENTED${this}${onfinally}`);}  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message  //  TODO: attach callback to settle
+	public finally( onFinally?: AbortableCallbackFinally | undefined | null ):Abortable<T> {  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
+		const e: Error = Object.freeze( new Error(`UNIMPLEMENTED ${this.constructor.name}( onFinally = ${onFinally} )`) );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message
+		throw e; // return Abortable.failure(e);
+	}  //  TODO: attach callback to settle
 	/**
 	 * Attaches a callback to be invoked when the task represented by this {@link Abortable} is settled.
-	 * @returns An abortable representing both the prior task and the callback as a single task
+	 * (When implemented will) \@returns An abortable representing both the prior task and the callback as a single task
 	 */
-	public ensure<U=T>( onensure?:((error?:Error|undefined,result?:T|undefined,message?:string|undefined)=>U|Abortable<U>)|undefined|null ):Abortable<U> {
-		throw new Error(`UNIMPLEMENTED${this}${onensure}`);  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message
+	public ensure<TResult=T>( onEnsure?: AbortableCallbackEnsure<T,TResult> | undefined | null ):Abortable<TResult> {  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
+		const e: Error = Object.freeze( new Error(`UNIMPLEMENTED ${this.constructor.name}( onensure = ${onEnsure} )`) );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message
+		throw e; // return Abortable.failure(e);
 	} // TODO: attach callback to settle
 }
 
@@ -611,7 +618,7 @@ export class AbortablePrestart<T> extends Abortable<T> {
 			const prestartAborter: AbortableAborter<T> = () => { throw new Error( `UNIMPLEMENTED: prestartAborter for ${executor}` ); };  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message
 			const p: AbortablePrepared<T> = {
 				starter: prestartStarter,
-				aborter: prestartAborter,
+				aborter: prestartAborter,  //  eslint-disable-line sort-keys  --  TODO: sort-keys option to require literals to match declaration order
 			};
 			return p;
 		};
@@ -635,7 +642,7 @@ export class AbortableController<T> {
 		if( ( init instanceof AbortableShared ) && ( "undefined" === typeof init.result ) ) {
 			this._as = init;
 		} else {
-			throw new Error( `Invalid construction for ${this.constructor.name} - do not construct these directly` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message
+			throw new Error( `Invalid construction for ${this.constructor.name} - do not construct these directly` );
 		}
 	}
 	/** Gets the label of this {@link Abortable} (for logging and debugging) */
@@ -671,7 +678,7 @@ export class AbortableController<T> {
 								debug( `${fn}: chain success to Thenable #${thenNum} (NEW SYNC)` );
 								Helpers.tryCatchElseFinally( () => { // try
 									thenFn( (res:T) => {  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  TODO: false positive
-										debug( `${fn}: Thenable #${thenNum} settled to success` );
+										debug( `${fn}: Thenable #${thenNum} settled to success`, res );
 										this.success(res);
 									}, (err:Error) => {
 										debug( `${fn}: Thenable #${thenNum} settled to failure` );
@@ -702,8 +709,10 @@ export class AbortableController<T> {
 				}
 				break;
 			case "succeded":
-				// if( result !== this._as.result ) { throw new Error( "Abortable made multiple calls to success with different results" ); } // TODO: break from promise spec and throw
-				console.error( `${fn}: Abortable made multiple calls to success with different results` );  //  eslint-disable-line no-console  --  TODO: better testing for this edge case
+				if( result !== this._as.result ) {
+					// throw new Error( "Abortable made multiple calls to success with different results" ); // TODO: break from promise spec and throw
+					console.error( `${fn}: Abortable made multiple calls to success with different results`, this._as.result );  //  eslint-disable-line no-console  --  TODO: better testing for this edge case
+				}
 				break;
 			default:
 				// throw new Error( "Abortable attempted to change state to succeded after changing state to "+this._as.state ); // TODO: break from promise spec and throw
@@ -731,7 +740,10 @@ export class AbortableController<T> {
 				);
 				break;
 			case "failed":
-				if( error !== this._as.error ) { throw new Error( "Abortable made multiple calls to failure with different errors" ); }
+				if( error !== this._as.error ) {
+					// throw new Error( "Abortable made multiple calls to failure with different errors" ); // TODO: break from promise spec and throw
+					console.error( `${fn}: Abortable made multiple calls to failure with different errors` );  //  eslint-disable-line no-console  --  TODO: better testing for this edge case
+				}
 				break;
 			default:
 				// throw new Error( "Abortable attempted to change state to failed after changing state to "+this._as.state ); // TODO: break from promise spec and throw
@@ -743,12 +755,12 @@ export class AbortableController<T> {
 	public reject( error:Error ):void {this.failure(error);}
 	// call to idle asynchronously; abort prevents resolution
 	/** Yield to other asynchronous tasks, for a minimum duration or until resumed; never resolves if this {@link Abortable} is {@link abort}ed. */
-	public async idle( seconds:number ):Promise<void> { await Abortable.reject( new Error( `UNIMPLEMENTED ${this} ${seconds}` ) ); }  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message  //  TODO: UNIMPLEMENTED
+	public async idle( seconds:number ):Promise<void> { await Abortable.reject( new Error( `UNIMPLEMENTED ${this.constructor.name}.idle( seconds = ${seconds} )` ) ); }  //  TODO: UNIMPLEMENTED
 	// call to set next function to run after idle; abort prevents call to next
 	// public idle( seconds:number, next:((ac:AbortableController<T>)=>T|Abortable<T>)|undefined ):Promise<void> {throw "UNIMPLEMENTED"};
 	// TODO: support idling by use of generator function? - see e.g. https://thejsguy.com/2016/10/15/a-practical-introduction-to-es6-generator-functions.html
 	/** Set abort cleanup handler, invoked when this {@link Abortable} is {@link abort}ed; only one can be set at any time, and it can be changed at any time */
-	public aborter( onabort:(message:string|undefined,ac:AbortableController<T>)=>void|Promise<void> ) { throw new Error( `UNIMPLEMENTED ${this} ${onabort}` ); }  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message  //  TODO: use setter
+	public aborter( onabort:(message:string|undefined,ac:AbortableController<T>)=>void|Promise<void> ) { throw new Error( `UNIMPLEMENTED ${this.constructor.name}.aborter( onabort = ${onabort} )` ); }  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in error message  //  TODO: use setter
 }
 
 /**
@@ -785,7 +797,7 @@ class AbortableShared<T> {
 	/** This {@link Abortable} */
 	public readonly a: Abortable<T>; // in constructor
 	/** The {@link AbortableController} for this {@link Abortable} */
-	public readonly ac: AbortableController<T> = new AbortableController( this );
+	public readonly ac: AbortableController<T> = new AbortableController<T>( this );
 	/** Callbacks to invoke if and when this {@link Abortable} succedes, including those added with [[Abortable#then]] */
 	public readonly onSuccess = new Array<(result:T)=>void>();
 	/** Callbacks to invoke if and when this {@link Abortable} fails, including those added with [[Abortable#catch]] */
@@ -861,23 +873,25 @@ class AbortableShared<T> {
 			setTimeout( // use setTimeout to make the settling asynchronous // TODO: preserve stack trace by doing something rediculous like setting up a context where Error is replaced with a wrapper that backfills the stack from before the asyncronous break
 				() => {
 					debug( `${fn}: invoking success callbacks (NEW SYNC)` );
-					for( let h = 0; h < this.onSuccess.length; h++ ) {
+					const count = this.onSuccess.length;
+					debug( `${fn}: ${count} callbacks to invoke with`, result );
+					for( let h = 1; 0 < this.onSuccess.length; h++ ) {
 						const i = h; // preserve value in closure
 						const onSuccess = this.onSuccess.shift();
 						if( "undefined" === typeof onSuccess ) {
-							debug( `${fn}:  success callback ${i} is undefined -- not invoking` );
+							debug( `${fn}:  success callback ${i} of ${count} is undefined -- not invoking` );
 						} else {
 							let t: unknown;
 							try {
-								debug( `${fn}: invoking success callback ${i} with result`, result );
+								debug( `${fn}: invoking success callback ${i} of ${count} with result`, result );
 								t = onSuccess( result ) as unknown; // eslint-disable-line @typescript-eslint/no-confusing-void-expression  --  TODO: this rule shouldn't catch explicit casts
 							} catch(e) {
-								debug( `${fn}:  success callback ${i} threw -- `, e );
+								debug( `${fn}:  success callback ${i} of ${count} threw -- `, e );
 							}
 							if( "undefined" !== typeof t ) {
-								debug( `${fn}:  success callback ${i} returned -- `, t );
+								debug( `${fn}:  success callback ${i} of ${count} returned -- `, t );
 							}
-							// debug( `${fn}: done with success callback ${i}` );
+							debug( `${fn}: done with success callback ${i} of ${count}` );
 						}
 					}
 					debug( `${fn}: ${this.onSuccess.length} success callbacks remaining (END SYNC)` );

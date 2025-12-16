@@ -1,5 +1,5 @@
 import * as debugFactory from "debug";  //  eslint-disable-line import/order  --  TODO: import/order option for conventions about specific imports
-const debug: debugFactory.IDebugger = debugFactory( "Helpers" );  //  eslint-disable-line @typescript-eslint/naming-convention -- use lowercase "debug" consistent with widespread convention
+const debug: debugFactory.IDebugger = debugFactory( "Helpers" );
 
 import { ChildProcess, fork as forkProcess, ForkOptions, spawn as spawnProcess, SpawnOptionsWithoutStdio } from "child_process";
 import { hostname } from "os";
@@ -12,13 +12,13 @@ import { lock as properLock, ReleaseFn } from "proper-lockfile";
 import { AbortableThen, AbortableAborted } from "./Abortable";
 
 /** Common name apparently removed from stdlib */
-export interface Thenable<T> {  //  eslint-disable-line @typescript-eslint/naming-convention  --  No "I" prefix for widely used name
+export type Thenable<T> = {
 	/** The only required property of a Thenable */
 	then: <TResult1 = T, TResult2 = never>(
-		onfulfilled?: ( ( value: T  ) => TResult1 | PromiseLike<TResult1>) | undefined | null,
-		onrejected?:  ( (reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null,  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  TODO: figure out how to type rejections
+		onfulfilled?: ( ( value: T  ) => TResult1 | PromiseLike<TResult1>) | undefined | null,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
+		onrejected?:  ( (reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents,@typescript-eslint/no-explicit-any  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters, TODO: figure out how to type rejections
 	) => Promise<TResult1 | TResult2>;
-}
+};
 
 /** My personal "personal quirks" idiomatic miscellanious helper collection */
 export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous-class  --  TODO: is there a better way to do this now?
@@ -30,7 +30,7 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 				task();
 			} catch(e) {
 				// e = this.errorChain( e, preserve ) // TODO: update errorChain to combine stack traces
-				throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: update errorChain to combine stack traces
+				throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: update errorChain to combine stack traces
 			}
 		} , 0 ); // TODO: args; take <T> as argtype?
 	}
@@ -60,10 +60,10 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 	public static unixTime( d?:Date|string ): number { return ( "undefined" !== typeof d ? ( (d instanceof Date) ? d.getTime() : Date.parse(d) ) : Date.now() ) / 1000; }  //  eslint-disable-line @typescript-eslint/no-magic-numbers  --  1000 is the ratio between unixtime and javascript time  //  TODO: unixtime as a type?
 	/** As close as javascript gets to the common `sleep` function, but with the option to sleep until a given time, and the option to cancel */
 	public static async idle( d: number|Date|string = 0, callback?: (canceler:()=>void) => void ): Promise<boolean> { // TODO: return an Abortable
-		let timer: NodeJS.Timer | undefined;
+		let timer: NodeJS.Timeout | undefined;
 		let _resolve: (finished:boolean) => void;
 		// let _reject: Function;
-		const r: Promise<boolean> = new Promise<boolean>( (resolve,/*reject*/) => { _resolve = resolve; /*_reject = reject;*/ } );
+		const r: Promise<boolean> = new Promise<boolean>( (resolve/*,reject*/) => { _resolve = resolve; /*_reject = reject;*/ } );
 		let timeout: number;
 		const finished: ()=>void = () => {
 			// console.log( "Idle Time Finished" );
@@ -111,7 +111,7 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 		const start = this.unixTime();
 		const stop = start + timeout;
 		// console.log( "Polling every "+interval+" from "+this.humanTime(start)+" to "+this.humanTime(stop) );
-		while( true ) {  //  eslint-disable-line no-constant-condition  --  pollin is an infinite loop  //  TODO: use setInterval?
+		while( true ) {  //  eslint-disable-line @typescript-eslint/no-unnecessary-condition,no-constant-condition  --  polling is an infinite loop  //  TODO: use setInterval?
 			if( await test() ) { return true; }
 			// console.log( "POLL test failed" );
 			if( this.unixTime() > stop ) { break; }
@@ -143,7 +143,7 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 					return undefined;  //  eslint-disable-line no-undefined  --  use undefined for excluded keys
 				}
 				if( _console ) { _console.log( `${fn}/replacer: including key (${typeof key}) ${key}` ); }
-				return value;  //  eslint-disable-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-unsafe-return  --  JSON can come from any type
+				return value;  //  eslint-disable-line @typescript-eslint/no-unsafe-return  --  JSON can come from any type
 			} : undefined,  //  eslint-disable-line no-undefined  --  use undefined for no filtering
 			"\t",
 		);
@@ -169,7 +169,7 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 		const err: Error = error instanceof Error ? error : "object" === typeof error ? new Error( this.JSONify( error ) ) : new Error( error as string ); // all primitives are reasonably convertable to string // TODO: include class name from tostring as well as JSONify?
 		if( "" === err.message ) {
 			err.message = "(Empty message)";
-		} else if( "undefined" === typeof err.message ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen
+		} else if( "undefined" === typeof err.message ) {  //  eslint-disable-line tslint/config  --  being cautious and testing for conditions that shouldn't happen
 			err.message = "(No message)";
 		}
 		if( "undefined" !== typeof messagePrefix ) { err.message = `${messagePrefix} -- ${err.message}`; }
@@ -195,11 +195,11 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 		return new Promise<BacktickResult>( (resolve,reject) => {
 			(async () => {  //  eslint-disable-line @typescript-eslint/require-await  --  TODO: review this design
 				try {
-					let opts: SpawnOptionsWithoutStdio = {};  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  TODO: type for options; copy constructor here
+					let opts: SpawnOptionsWithoutStdio = {};  //  TODO: type for options; copy constructor here
 					let input = "";
 					if( "undefined" === typeof options ) {
-						if( "undefined" !== typeof args ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen
-							if( args.length > 1 && "object" === typeof args[args.length-1] ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen  //  TODO: if args isn't a rest parameter, why allow the last arg to be the options?
+						if( "undefined" !== typeof args ) {  //  eslint-disable-line tslint/config  --  being cautious and testing for conditions that shouldn't happen
+							if( args.length > 1 && "object" === typeof args[args.length-1] ) {  //  eslint-disable-line tslint/config  --  being cautious and testing for conditions that shouldn't happen  //  TODO: if args isn't a rest parameter, why allow the last arg to be the options?
 								opts = args.pop() as SpawnOptionsWithoutStdio;  //  TODO: this should go to options, opts should be derived from options  //  TODO: type for options
 							}
 						}
@@ -208,9 +208,9 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 						if( "undefined" !== typeof options.cwd ) { opts.cwd = options.cwd; }  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment  --  not actually unsafe when reciever is not undefined  //  TODO: type for options
 						if( "undefined" !== typeof options.input ) { input = options.input; }  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment  --  not actually unsafe when reciever is not undefined  //  TODO: type for options
 					}
-					if( "undefined" === typeof args || 0 === args.length ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen
+					if( "undefined" === typeof args || 0 === args.length ) {  //  eslint-disable-line tslint/config  --  being cautious and testing for conditions that shouldn't happen
 						if( /\s/.test( command ) ) {
-							opts.shell = true;  //  eslint-disable-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment  --  not actually unsafe when reciever is not undefined  //  TODO: type for options
+							opts.shell = true;
 						}
 					}
 					// TODO: options.timeout
@@ -224,14 +224,14 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 
 					const start: number = Helpers.unixTime();
 					const cmd = spawnProcess( command, args, opts );
-					cmd.stdout.on( "data", (data) => { const data_string = "string" === typeof data ? data : String(data); out += data_string; log.push( { time: Helpers.unixTime(), fd: "OUT", data: data_string } ); } );
-					cmd.stderr.on( "data", (data) => { const data_string = "string" === typeof data ? data : String(data); err += data_string; log.push( { time: Helpers.unixTime(), fd: "ERR", data: data_string } ); } );
+					cmd.stdout.on( "data", (data) => { const data_string = "string" === typeof data ? data : String(data); out += data_string; log.push( { time: Helpers.unixTime(), fd: "OUT", data: data_string } ); } );  //  eslint-disable-line sort-keys  --  match declaration order
+					cmd.stderr.on( "data", (data) => { const data_string = "string" === typeof data ? data : String(data); err += data_string; log.push( { time: Helpers.unixTime(), fd: "ERR", data: data_string } ); } );  //  eslint-disable-line sort-keys  --  match declaration order
 					cmd.on( "close", (code:number) => {
 						const stop = Helpers.unixTime();
-						log.push( { time: stop, fd: "EXIT", data: `${code}` } );
+						log.push( { time: stop, fd: "EXIT", data: `${code}` } );  //  eslint-disable-line sort-keys  --  match declaration order
 						resolve( {
 							code: code,
-							command: [command].concat( "undefined" !== typeof args ? args : [] ).join(" "),  //  eslint-disable-line @typescript-eslint/tslint/config  --  being cautious and testing for conditions that shouldn't happen
+							command: [command].concat( "undefined" !== typeof args ? args : [] ).join(" "),  //  eslint-disable-line tslint/config  --  being cautious and testing for conditions that shouldn't happen
 							err: err,
 							errors: err.length > 0 || code !== 0,
 							input: input,
@@ -264,7 +264,7 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 			}
 		};
 		const pid: number = process.pid;
-		const getStart = await this.backtick( `ps -p ${pid} -o lstart=` ); // TODO: command is OS dependent
+		const getStart = await this.backtick( `ps -p ${pid} -o lstart=` );  //  TODO: command is OS dependent
 		const start: number = this.unixTime( getStart.out );
 		const content: string = this.JSONify( {
 			HOST:  hostname(),  //  eslint-disable-line @typescript-eslint/naming-convention  --  using a different convention for file format
@@ -272,7 +272,7 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 			START: start,       //  eslint-disable-line @typescript-eslint/naming-convention  --  using a different convention for file format
 			startStr: this.humanTime( start ),
 		} );
-		const releaseDir: ReleaseFn = await properLock( filename, { realpath: false, onCompromised: onCompromised } );
+		const releaseDir: ReleaseFn = await properLock( filename, { realpath: false, onCompromised: onCompromised } );  //  eslint-disable-line sort-keys  --  match conventional order
 		await writeFile( filename, content, "utf8" );
 		return release;
 	} catch(e) { throw this.errorChain( e, fn ); } }  //  eslint-disable-line brace-style  --  TODO: brace-style option to allow try/catch on start & end lines
@@ -337,29 +337,29 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 			throw this.errorChain( e, fn );
 		}
 	}
-	/** Turn a function that takes a callback into a function that returns a Promise */
-	public static async asyncify<T,E=any>( oldf:(...args:any[])=>void, ...args: any[] ): Promise<T> {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  default to any so it works by default
+	/** Call a function that takes a callback, get a Promise that represents the invocation of the callback */
+	public static async asyncify<T,E=any>( oldf:(...args:any[])=>void, ...args: any[] ): Promise<T> {  //  eslint-disable-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unnecessary-type-parameters  --  default to any so it works by default, E is the error type expected for the callback  //  TODO: define types for oldf (function with callback), use T and E in their definitions
 		const fn = "Helpers.asyncify";
 		return new Promise<T>( (resolve,reject): void => {
 			let check = false;
 			const callback = ( err:E, res:T ) => {
 				check = true;
-				if( "undefined" !== typeof err) { reject(err); } else { resolve(res); }
+				if( "undefined" !== typeof err) { reject(err); } else { resolve(res); }  //  eslint-disable-line @typescript-eslint/prefer-promise-reject-errors  --  any for compatability
 			};
 			args.push(callback);
 			try {
 				oldf( args );
-				if( !check ) { console.warn( `${fn}: function returned before callback invoked; either it started something asynchronous, or this chain is doomed` ); }  //  eslint-disable-line no-console  --  TODO: what's the right way to do this?
-			} catch( e ) { reject(e); return; }
+				if( !check ) { console.warn( `${fn}: function returned before callback invoked; either it started something asynchronous, or this chain is doomed` ); }  //  eslint-disable-line no-console,@typescript-eslint/no-unnecessary-condition  --  console needed because it's the only generic way to get a message out from a doomed promise chain  //  TODO: Take a parameter that defaults to (global) console by  //  TODO: no-unnecessary-condition shouldn't assume no callbacks have been invoked
+			} catch( e ) { reject(e); return; }  //  eslint-disable-line @typescript-eslint/prefer-promise-reject-errors  --  any for compatability  //  TODO: has typescript added a way to declare thrown types?
 		} );
 	}
 	/** Each call returns the next entry in the given cycle; defaults to English capital letters */
-	public static cycler<T=string>( ...args:(T|T[])[] ): ()=>T {
+	public static cycler<T=string>( ...args: T[] | [T[]] ): ()=>T {  //  TODO: default T should be string of length 1  //  TODO: this would be better if a rest parameter was allowed to have an initializer  //  TODO: the right way is to not have a default here but have a separate set of cycle functions, starting with the current default
 		const list: T[] = args.length > 0
 			? 1 === args.length && args[0] instanceof Array
 				? args[0]
 				: args as T[]
-			: ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"] as T[];
+			: ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"] as T[];  //  eslint-disable-line @typescript-eslint/consistent-type-assertions  --  TODO: update consistent-type-assertions to handle initializer workarounds
 		let i = list.length-1;
 		if( i <= 0 ) { throw new Error( "Helpers.cycler: cycle must contain at least one entry" ); }
 		return () => { i = i >= list.length-1 ? 0 : i+1; return list[i]; };
@@ -381,7 +381,7 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 			return undefined;  //  eslint-disable-line no-undefined  --  undefined indicates that p is not thenable
 		}
 	}
-	/** Returns the catch method, if and only if p is catchable */
+	/** @ignore until typedoc bug is fixed  --  Returns the catch method, if and only if p is catchable */
 	public static catchIfCatchable( p: any ): typeof Promise.prototype.catch | undefined {  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any because this is a type discriminator
 		if( ("undefined" !== typeof p) && ( "object" === typeof p || "function" === typeof p) ) {
 			const _catch: typeof Promise.prototype.catch | undefined = p.catch;  //  eslint-disable-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/dot-notation  --  any because this is a type discriminator; dot-keyword because that's the spec
@@ -443,14 +443,14 @@ export class Helpers {  //  eslint-disable-line @typescript-eslint/no-extraneous
 	}
 	/** Convert any object into a (possibly meaningless) string */
 	public static stringify( x: unknown ):string {
-		if( "object" !== typeof x ) { return `${x}`; }  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  primitives are safe to stringify
+		if( "object" !== typeof x ) { return `${x}`; }  //  eslint-disable-line @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-base-to-string  --  primitives are safe to stringify, the point of this is to have a fallback  //  TODO: no-base-to-string shouldn't complain about [object Object] when the type is explicitly not object
 		if( null === x ) { return "null"; }  //  eslint-disable-line no-null/no-null  --  string representation of null
-		if( "function" === typeof x.toString ) { return x.toString(); }  //  eslint-disable-line @typescript-eslint/tslint/config  --  not all objects define their own string representation  //  TODO: check that toString returns a string?
+		if( "function" === typeof x.toString ) { return x.toString(); }  //  eslint-disable-line tslint/config, @typescript-eslint/no-base-to-string  --  not all objects define their own string representation, the point of this is to have a fallback  //  TODO: check that toString returns a string?  //  TODO: make sure this check doesn't find a default toString
 		return this.JSONify( x );
 	}
 }
 
-export interface IAsyncNew {
+export interface IAsyncNew {  //  eslint-disable-line @typescript-eslint/consistent-type-definitions  --  TODO: Why is this an interface rather than a type?
 	/** Resolves when asynchronous portion of constructor completes */
 	asyncConstructor: Promise<void>;
 	// static async new(...args:any[]): Promise<typeof this> { let r = new this(...args); await r.asyncConstructor; return r}

@@ -54,7 +54,7 @@ export class AsyncablePromise<T> implements Promise<T> {
 	}
 
 	/** [object AsyncablePromise<$\{ID\}:$\{STATE\}>] */
-	public toString() { return `[object ${this.label()}]`; }
+	public toString(): string { return `[object ${this.label()}]`; }
 
 	/** Passthrough to {@link Asyncable#then} */
 	public then<TResult1 = T, TResult2 = never>(
@@ -67,7 +67,7 @@ export class AsyncablePromise<T> implements Promise<T> {
 			onfulfilled ? (value) => {
 				debug( `${this.label(_fn)}/${r}/onf: Invoked` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
 				let v: TResult1 | PromiseLike<TResult1>;
-				if( "function" === typeof onfulfilled ) {
+				if( "function" === typeof onfulfilled ) {  //  eslint-disable-line tslint/config  --  Expression is always true. (tslint:strict-type-predicates): re-checking at callback invocation
 					debug( `${this.label(_fn)}/${r}/onf: Invoking onfulfilled` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
 					v = onfulfilled( value );
 				} else {
@@ -85,7 +85,7 @@ export class AsyncablePromise<T> implements Promise<T> {
 			} : undefined,  //  eslint-disable-line no-undefined  --  TODO: is there a better way to do this?
 			onrejected ? (reason) => {
 				debug( `${this.label(_fn)}/onr: Invoked` );
-				if( "function" === typeof onrejected ) {
+				if( "function" === typeof onrejected ) {  //  eslint-disable-line tslint/config  --  Expression is always true. (tslint:strict-type-predicates): re-checking at callback invocation
 					debug( `${this.label(_fn)}/${r}/onr: Invoking onrejected` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
 					let result: TResult2 | PromiseLike<TResult2>;
 					try {
@@ -93,7 +93,7 @@ export class AsyncablePromise<T> implements Promise<T> {
 						debug( `${this.label(_fn)}/${r}/onr: onrejected returned (${typeof result}) ${Helpers.stringify(result)}` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
 					} catch(e) {
 						debug( `${this.label(_fn)}/${r}/onr: onrejected threw (${typeof e}) ${e}` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
-						throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: Helpers.tryCatchElseFinally needs types
+						throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  rethrow what was caught
 					}
 					if( result === r ) {
 						const e = new TypeError( "AsyncablePromise cannot be resolved to itself" );
@@ -101,11 +101,11 @@ export class AsyncablePromise<T> implements Promise<T> {
 						throw e;
 					}
 					debug( `${this.label(_fn)}/${r}/onr: Returning ${Helpers.stringify(result)}` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
-					return result;  //  eslint-disable-line @typescript-eslint/no-non-null-assertion  --  TODO: can this be done without assertion?  We can't check for undefined, because TResult2 might include undefined, but tryCatchElseFinally might return undefined
+					return result;
 				} else {
 					debug( `${this.label(_fn)}/${r}/onr: onrejected is not a function, it's a ${Helpers.whatIs(onrejected)}` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
 					debug( `${this.label(_fn)}/${r}/onr: Throwing ${reason}` );  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
-					throw reason;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  any is necessary for compatibility with Promise
+					throw reason;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  any is necessary for compatibility with Promise
 				}
 			} : undefined,  //  eslint-disable-line no-undefined  --  TODO: is there a better way to do this?
 		) );
@@ -126,15 +126,15 @@ export class AsyncablePromise<T> implements Promise<T> {
 
 	/** Passthrough to {@link Asyncable#finally} */
 	public finally(
-		onfinally?: ( () => void ) | null | undefined,
+		onfinally?: ( () => void ) | null | undefined,  //  eslint-disable-line @typescript-eslint/no-duplicate-type-constituents  --  TODO: no-duplicate-type-constituents option to ignore explicitly unioning undefined with multiple other types in optional pramaters
 	): AsyncablePromise<T> {
 		return new AsyncablePromise( this._asyncable.finally( onfinally ) );  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 	}
 
 	/** Gets the label of this {@link AsyncablePromise} (for logging and debugging) */
-	public label( fn?: string ) {
-		if( "undefined" === typeof this._asyncable ) {  //  eslint-disable-line @typescript-eslint/tslint/config  --  this can get called before initialization gets far enough to set _asyncable
-			return `AsyncablePromise<  construction in progress   >${ "undefined" !== typeof fn ? `.${fn}` : "" }`;  //  eslint-disable-line @typescript-eslint/restrict-template-expressions  --  accept any type when including value in debug message
+	public label( fn?: string ): string {
+		if( "undefined" === typeof this._asyncable ) {  //  eslint-disable-line tslint/config  --  this can get called before initialization gets far enough to set _asyncable
+			return `AsyncablePromise<  construction in progress   >${ "undefined" !== typeof fn ? `.${fn}` : "" }`;
 		} else {
 			return this._asyncable.label( fn ).replace( /^Asyncable</, "AsyncablePromise<" );
 		}

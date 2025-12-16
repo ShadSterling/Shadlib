@@ -14,7 +14,7 @@ export type PromiseCallbackFulfilled<T,TResult1> = ( (  value: T   ) => TResult1
 export type PromiseCallbackRejected<   TResult2> = ( ( reason: any ) => TResult2 | PromiseLike<TResult2> ) | null | undefined;  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any is necessary for compatibility with Promise
 export type PromiseCallbackFinally<  T         > = ( (        ) => T | PromiseLike<T> | undefined | void ) | null | undefined;  //  eslint-disable-line @typescript-eslint/no-invalid-void-type  --  TODO: this rule shouldn't complain that void is only valid as a return type when it's being used as a return type
 
-export interface PromiseWithFinally<T> extends Promise<T> {  //  eslint-disable-line @typescript-eslint/naming-convention  --  No "I" prefix, follow common convention  //  TODO: Why is this an interface rather than a type?
+export interface PromiseWithFinally<T> extends Promise<T> {  //  eslint-disable-line @typescript-eslint/naming-convention, @typescript-eslint/consistent-type-definitions  --  No "I" prefix, follow common convention  --  TODO: Why is this an interface rather than a type?
 	/** The same then as Promise.then */
 	then: <TResult1 = T, TResult2 = never>(
 		onfulfilled?: PromiseCallbackFulfilled<T,TResult1>,
@@ -66,20 +66,16 @@ export type NormalizedAdapterWithFinally = {
 export function normalizeAdapter(
 	adapter: AdapterWithFinally,
 ): NormalizedAdapterWithFinally { // convert-in-place cast
-	if( !adapter.resolved ) {
-		adapter.resolved = async <T=any>( value: T ): Promise<T> => {  //  eslint-disable-line no-param-reassign,@typescript-eslint/no-explicit-any  --  this method is meant to edit adapter in-place; default to any so it works by default
-			const d = adapter.deferred<T>();
-			d.resolve( value );
-			return d.promise;
-		};
-	}
-	if( !adapter.rejected ) {
-		adapter.rejected = async ( reason ): Promise<never> => {  //  eslint-disable-line no-param-reassign  --  this method is meant to edit adapter in-place
-			const d = adapter.deferred<never>();
-			d.reject(reason);
-			return d.promise;
-		};
-	}
+	adapter.resolved ??= async <T=any>( value: T ): Promise<T> => {  //  eslint-disable-line no-param-reassign,@typescript-eslint/no-explicit-any  --  this method is meant to edit adapter in-place; default to any so it works by default
+		const d = adapter.deferred<T>();
+		d.resolve( value );
+		return d.promise;
+	};
+	adapter.rejected ??= async ( reason ): Promise<never> => {  //  eslint-disable-line no-param-reassign  --  this method is meant to edit adapter in-place
+		const d = adapter.deferred<never>();
+		d.reject(reason);
+		return d.promise;
+	};
 	return adapter as NormalizedAdapterWithFinally;
 }
 
@@ -117,7 +113,7 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 			specify( "from rejected", (done) => {
 				adapter.rejected(someRejectionReason).catch( (e) => {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert.strictEqual(e, someRejectionReason);
-					throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make someRejectionReason an Error instance
+					throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make someRejectionReason an Error instance
 				} ).finally().then(  //  eslint-disable-line newline-per-chained-call,@typescript-eslint/dot-notation  --  TODO: newline-per-chained-call option to ignore chained calls with no (or simple) parameters; TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					function onFulfilled() {
 						done(new Error("should not be called"));
@@ -137,7 +133,7 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 					return x;
 				} ).finally( function onFinally() {  //  eslint-disable-line newline-per-chained-call,@typescript-eslint/dot-notation  --  TODO: newline-per-chained-call option to accept newlines in blocks; TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert(0 === arguments.length);
-					throw someRejectionReason;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make someRejectionReason an Error instance
+					throw someRejectionReason;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make someRejectionReason an Error instance
 				} ).then(  //  eslint-disable-line newline-per-chained-call  --  TODO: newline-per-chained-call option to accept newlines in blocks
 					function onFulfilled() { done( new Error("should not be called") ); },
 					function onRejected(reason) { assert.strictEqual(reason, someRejectionReason); done(); },
@@ -147,7 +143,7 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 			specify( "from rejected", (done) => {
 				adapter.rejected(anotherReason).finally( function onFinally() {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert(0 === arguments.length);
-					throw someRejectionReason;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make someRejectionReason an Error instance
+					throw someRejectionReason;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make someRejectionReason an Error instance
 				} ).then(  //  eslint-disable-line newline-per-chained-call  --  TODO: newline-per-chained-call option to accept newlines in blocks
 					function onFulfilled() { done( new Error("should not be called") ); },
 					function onRejected(reason) { assert.strictEqual(reason, someRejectionReason); done(); },
@@ -182,10 +178,10 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 			specify( "from rejected", (done) => {
 				adapter.rejected(anotherReason).catch( (e) => {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert.strictEqual(e, anotherReason);
-					throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make anotherReason an Error instance
+					throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make anotherReason an Error instance
 				} ).finally( function onFinally() {  //  eslint-disable-line newline-per-chained-call,@typescript-eslint/dot-notation  --  TODO: newline-per-chained-call option to accept newlines in blocks; TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert(0 === arguments.length);
-					throw someRejectionReason;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make someRejectionReason an Error instance
+					throw someRejectionReason;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make someRejectionReason an Error instance
 				} ).then(  //  eslint-disable-line newline-per-chained-call  --  TODO: newline-per-chained-call option to accept newlines in blocks
 					function onFulfilled() { done( new Error("should not be called") ); },
 					function onRejected(e) { assert.strictEqual(e, someRejectionReason); done(); },
@@ -195,7 +191,7 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 
 		describe( "returns a pending-forever promise", () => {
 			specify( "from resolved", (done) => {
-				let timeout: NodeJS.Timer;
+				let timeout: NodeJS.Timeout;
 				adapter.resolved(three).then( (x) => {
 					assert.strictEqual(x, three);
 					return x;
@@ -213,10 +209,10 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 			} );
 
 			specify( "from rejected", (done) => {
-				let timeout: NodeJS.Timer;
+				let timeout: NodeJS.Timeout;
 				adapter.rejected(someRejectionReason).catch( (e) => {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert.strictEqual(e, someRejectionReason);
-					throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make someRejectionReason an Error instance
+					throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make someRejectionReason an Error instance
 				} ).finally( function onFinally() {  //  eslint-disable-line newline-per-chained-call,@typescript-eslint/dot-notation,@typescript-eslint/promise-function-async  --  TODO: newline-per-chained-call option to accept newlines in blocks; TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property; not async because we need to use arguments keyword
 					assert(0 === arguments.length);
 					timeout = setTimeout(done, time100);
@@ -251,7 +247,7 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 			specify( "from rejected", (done) => {
 				adapter.rejected(someRejectionReason).catch( (e) => {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert.strictEqual(e, someRejectionReason);
-					throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make someRejectionReason an Error instance
+					throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make someRejectionReason an Error instance
 				} ).finally( function onFinally() {  //  eslint-disable-line newline-per-chained-call,@typescript-eslint/dot-notation,@typescript-eslint/promise-function-async  --  TODO: newline-per-chained-call option to accept newlines in blocks; TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property; not async because we need to use arguments keyword
 					assert(0 === arguments.length);
 					return adapter.resolved(four) as unknown as PromiseWithFinally<never>; // adapter.rejected returns a PromiseWithFinally<never>, so onFinally is a PromiseCallbackFinally<never>, and must return another PromiseWithFinally<never>
@@ -280,7 +276,7 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 				const newReason = {};
 				adapter.rejected(someRejectionReason).catch((e) => {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert.strictEqual(e, someRejectionReason);
-					throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make someRejectionReason an Error instance
+					throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make someRejectionReason an Error instance
 				} ).finally( function onFinally() {  //  eslint-disable-line newline-per-chained-call,@typescript-eslint/dot-notation,@typescript-eslint/promise-function-async  --  TODO: newline-per-chained-call option to accept newlines in blocks; TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property; not async because we need to use arguments keyword
 					assert(0 === arguments.length);
 					return adapter.rejected(newReason);
@@ -293,7 +289,7 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 
 		describe( "returns a fulfilled-after-a-second promise", () => {
 			specify( "from resolved", (done) => {
-				let timeout: NodeJS.Timer;
+				let timeout: NodeJS.Timeout;
 				adapter.resolved(three).then((x) => {
 					assert.strictEqual(x, three);
 					return x;
@@ -317,10 +313,10 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 			} );
 
 			specify( "from rejected", (done) => {
-				let timeout: NodeJS.Timer;
+				let timeout: NodeJS.Timeout;
 				adapter.rejected(three).catch((e) => {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert.strictEqual(e, three);
-					throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make three an Error instance
+					throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make three an Error instance
 				} ).finally( function onFinally() {  //  eslint-disable-line newline-per-chained-call,@typescript-eslint/dot-notation,@typescript-eslint/promise-function-async  --  TODO: newline-per-chained-call option to accept newlines in blocks; TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property; not async because we need to use arguments keyword
 					assert(0 === arguments.length);
 					timeout = setTimeout(done, time1500);
@@ -334,7 +330,7 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 
 		describe( "returns a rejected-after-a-second promise", () => {
 			specify( "from resolved", (done) => {
-				let timeout: NodeJS.Timer;
+				let timeout: NodeJS.Timeout;
 				adapter.resolved(three).then( (x) => {
 					assert.strictEqual(x, three);
 					return x;
@@ -349,10 +345,10 @@ export function mocha( _adapter: AdapterWithFinally ): void {
 			} );
 
 			specify( "from rejected", (done) => {
-				let timeout: NodeJS.Timer;
+				let timeout: NodeJS.Timeout;
 				adapter.rejected(someRejectionReason).catch((e) => {  //  eslint-disable-line @typescript-eslint/dot-notation  --  TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property
 					assert.strictEqual(e, someRejectionReason);
-					throw e;  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  TODO: make someRejectionReason an Error instance
+					throw e;  //  eslint-disable-line @typescript-eslint/only-throw-error  --  TODO: make someRejectionReason an Error instance
 				} ).finally( function onFinally() {  //  eslint-disable-line newline-per-chained-call,@typescript-eslint/dot-notation,@typescript-eslint/promise-function-async  --  TODO: newline-per-chained-call option to accept newlines in blocks; TODO: @typescript-eslint/dot-notation option to allow keywords when appropriate, ideally detecting when the type defines the property; not async because we need to use arguments keyword
 					assert(0 === arguments.length);
 					timeout = setTimeout(done, time1500);

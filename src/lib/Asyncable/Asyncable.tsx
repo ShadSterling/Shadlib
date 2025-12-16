@@ -85,7 +85,7 @@ export class Asyncable<T> {
 	/** Result if and when this {@link Asyncable} succedes */
 	private _result: T | undefined;
 	/** Error if and when this {@link Asyncable} fails */
-	private _error: any | undefined;  //  eslint-disable-line @typescript-eslint/no-explicit-any  --  any for compatibility
+	private _error: any | undefined;  //  eslint-disable-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-redundant-type-constituents  --  any for compatibility
 	/** Function to transition from READY to RUNNING */
 	private _start: () => this;
 	/** Number of thenables passed to {@link _success} */
@@ -104,7 +104,7 @@ export class Asyncable<T> {
 			( error: any ): void => { this._failure( error ); }, // eslint-disable-line @typescript-eslint/no-explicit-any  --  TODO: error type parameter (default string)
 		);
 		debug( `${this.label(_fn)}: Invoking preparer` );
-		const prepared: AsyncablePrepared<T> = preparer( ac ) || {}; // TODO: run through constructor to ensure validity and warn of extra properties
+		const prepared: AsyncablePrepared<T> = preparer( ac ) ?? {}; // TODO: run through constructor to ensure validity and warn of extra properties
 		debug( `${this.label(_fn)}: Preparer returned in state ${AsyncableState[this._state]}` );
 		if( this._state === AsyncableState.PREPARING ) {
 			if( prepared.starter ) {
@@ -294,7 +294,7 @@ export class Asyncable<T> {
 				(error) => {
 					const f = onfinally();
 					const then: AsyncableThen<T,never> | undefined = Asyncable._thenIfThenable( f );
-					if( then ) { return then( ()=>{ throw error; } ); } else { throw error; }  //  eslint-disable-line @typescript-eslint/no-throw-literal  --  throw any (rather than Error)
+					if( then ) { return then( ()=>{ throw error; } ); } else { throw error; }  //  eslint-disable-line @typescript-eslint/only-throw-error  --  throw any (rather than Error)
 				},
 			);
 		} else {
@@ -364,14 +364,14 @@ export class Asyncable<T> {
 								debug( `${this.label(_fn)}/onFailure: Returning for Thenable #${thenNum} -- undefined` );
 							};
 							try {
-								thenFn( onSuccess, onFailure );  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  start returns self, doesn't need additional error handling
+								thenFn( onSuccess, onFailure );  //  eslint-disable-line @typescript-eslint/no-floating-promises  --  onSuccess and onFailure can't fail, no need for additional error handling  //  TODO: can this set up a race when _success is called more than once?  //  TODO: catch failures even though they should be impossible, debug message and rethrow with useful message
 							} catch(e) {
-								debug( `${this.label(_fn)}: Thenable #${thenNum} threw -- %O`, e );
+								debug( `${this.label(_fn)}/thenThrew: then-ing Thenable #${thenNum} threw -- %O`, e );
 								if( thenNum === this._thenCount ) {
-									debug( `${this.label(_fn)}/onSuccess: Thenable #${thenNum} is current, failing` );
+									debug( `${this.label(_fn)}/thenThrew: Thenable #${thenNum} is current, failing` );
 									this._failure( e );
 								} else {
-									debug( `${this.label(_fn)}/onSuccess: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring error %O`, e );
+									debug( `${this.label(_fn)}/thenThrew: Thenable #${thenNum} has been replaced (on #${this._thenCount}), ignoring error %O`, e );
 								}
 							}
 							debug( `${this.label(_fn)}: chained settling to Thenable #${thenNum} (END SYNC)` );
@@ -385,19 +385,23 @@ export class Asyncable<T> {
 						while( this._onSuccess.length > 0 ) {
 							h += 1;
 							const i = h; // preserve value in closure
-							const onSuccess = this._onSuccess.shift() as AsyncableChainSuccess<T>;
-							debug( `${this.label(_fn)}: invoking onSuccess callback #${i} (BRANCH SYNC)` );
-							setTimeout( () => {
-								debug( `${this.label(_fn)}: invoking onSuccess callback #${i} (NEW SYNC)` );
-								try {
-									onSuccess( this._result as T );
-								} catch(e) {
-									debug( `${this.label(_fn)}: onSuccess callback #${i} threw -- %O`, e );
-								}
-								debug( `${this.label(_fn)}: done with onSuccess callback #${i} (END SYNC)` );
-							}, 0 );
+							const onSuccess = this._onSuccess.shift();
+							if( "function" == typeof onSuccess ) {
+								debug( `${this.label(_fn)}: invoking onSuccess callback #${i} (BRANCH SYNC)` );
+								setTimeout( () => {
+									debug( `${this.label(_fn)}: invoking onSuccess callback #${i} (NEW SYNC)` );
+									try {
+										onSuccess( this._result as T );
+									} catch(e) {
+										debug( `${this.label(_fn)}: onSuccess callback #${i} threw -- %O`, e );
+									}
+									debug( `${this.label(_fn)}: done with onSuccess callback #${i} (END SYNC)` );
+								}, 0 );
+							} else {
+								debug( `${this.label(_fn)}: skipping onSuccess callback #${i} (not a function; a ${typeof onSuccess})`, onSuccess );
+							}
+							debug( `${this.label(_fn)}: ${this._onSuccess.length} onSuccess callbacks remaining` );
 						}
-						debug( `${this.label(_fn)}: ${this._onSuccess.length} onSuccess callbacks remaining` );
 					}
 				}
 				break;
@@ -426,7 +430,7 @@ export class Asyncable<T> {
 			case AsyncableState.READY: {
 				const errReady = `${this.label(_fn)}: Failed while not running (in state ${AsyncableState[this._state]})`;
 				debug( errReady );
-				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error
+				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error (prevents infinite recursion)
 				this._failure( new Error( errReady ) );
 				break;
 			}
@@ -440,17 +444,21 @@ export class Asyncable<T> {
 				while( this._onFailure.length > 0 ) {
 					h += 1;
 					const i = h; // preserve value in closure
-					const onFailure = this._onFailure.shift() as AsyncableChainFailure<T>;
-					debug( `${this.label(_fn)}: invoking onFailure callback #${i} (BRANCH SYNC)` );
-					setTimeout( () => {
-						debug( `${this.label(_fn)}: invoking onFailure callback #${i} (NEW SYNC)` );
-						try {
-							onFailure( this._error );
-						} catch(e) {
-							debug( `${this.label(_fn)}: onFailure callback #${i} threw -- %O`, e );
-						}
-						debug( `${this.label(_fn)}: done with onFailure callback #${i} (END SYNC)` );
-					}, 0 );
+					const onFailure = this._onFailure.shift();
+					if( "function" == typeof onFailure ) {
+						debug( `${this.label(_fn)}: invoking onFailure callback #${i} (BRANCH SYNC)` );
+						setTimeout( () => {
+							debug( `${this.label(_fn)}: invoking onFailure callback #${i} (NEW SYNC)` );
+							try {
+								onFailure( this._error );
+							} catch(e) {
+								debug( `${this.label(_fn)}: onFailure callback #${i} threw -- %O`, e );
+							}
+							debug( `${this.label(_fn)}: done with onFailure callback #${i} (END SYNC)` );
+						}, 0 );
+					} else {
+						debug( `${this.label(_fn)}: skipping onFailure callback #${i} (not a function; a ${typeof onFailure})`, onFailure );
+					}
 					debug( `${this.label(_fn)}: ${this._onFailure.length} onFailure callbacks remaining` );
 				}
 				break;
@@ -462,10 +470,10 @@ export class Asyncable<T> {
 				debug( `${this.label(_fn)}: already failed` );
 				break;
 			default: {
-				const errDefault = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state} => ${AsyncableState[this._state]}`;
+				const errDefault = `${this.label(_fn)}: invalid state (${typeof this._state}) ${this._state.toString()} => ${AsyncableState[this._state]}`;
 				debug( errDefault );
 				this._state = AsyncableState.INVALID; // set to recognized invalid state before failing with state error
-				this._failure( new Error( errDefault ) );
+				this._failure( new Error( errDefault ) );  //  TODO: this looks like infinite recursion - there's no handler for AsyncableState.INVALID
 				break;
 			}
 		}
